@@ -104,6 +104,7 @@
     <ClInclude Include="external\stb_image.h" />
     <ClInclude Include="config\config.h" />
     <ClInclude Include="features\features.h" />
+    <ClInclude Include="features\chams.h" />
     <!-- ImGui -->
     <ClInclude Include="external\imgui\imgui.h" />
     <ClInclude Include="external\imgui\imgui_internal.h" />
@@ -125,6 +126,7 @@
     <ClCompile Include="hooks\hooks.cpp" />
     <ClCompile Include="render\render.cpp" />
     <ClCompile Include="features\features.cpp" />
+    <ClCompile Include="features\chams.cpp" />
     <!-- ImGui -->
     <ClCompile Include="external\imgui\imgui.cpp" />
     <ClCompile Include="external\imgui\imgui_draw.cpp" />

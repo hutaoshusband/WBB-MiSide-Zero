@@ -14,16 +14,6 @@ namespace sdk {
         vsnprintf(buffer, sizeof(buffer), fmt, args);
         va_end(args);
         g_LastLog = buffer;
-
-        // Log to file
-        char path[MAX_PATH];
-        if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_DESKTOP, NULL, 0, path))) {
-            std::string logPath = std::string(path) + "\\wbb_miside_log.txt";
-            std::ofstream logFile(logPath, std::ios_base::app);
-            if (logFile.is_open()) {
-                logFile << buffer << std::endl;
-            }
-        }
     }
 
     const char* GetLastLog() {
@@ -138,29 +128,13 @@ namespace sdk {
         
         void* value = nullptr;
         il2cpp_field_static_get_value(field, &value);
-        return value; // For pointer types, this is the value
+        return value; 
     }
 
     void* GetInstanceFieldValue(void* instance, const char* fieldName) {
-        // Find field in class (we assume we know the class or query it)
-        // For simplicity allow passing class, or just object (need object_get_class)
-        // Here we will assume the caller knows exactly what they are doing or we improve this later
-        return nullptr; // Need object class support
+        return nullptr; 
     }
-    // Improved version requiring class
-    void* GetValue(void* instance, Il2CppClass* klass, const char* fieldName) {
-         if (!instance || !klass) return nullptr;
-         Il2CppField* field = GetField(klass, fieldName);
-         if (!field) return nullptr;
-         
-         void* value = nullptr;
-         il2cpp_field_get_value(instance, field, &value);
-         return value;
-    }
-
-    // Instance field wrapper with manual class lookup (expensive, but useful)
-    // We'll skip for now and use specific getters
-
+   
     void* RuntimeInvoke(Il2CppMethod* method, void* instance, void** params, void** exc) {
         if (!method) return nullptr;
         return il2cpp_runtime_invoke(method, instance, params, exc);
@@ -173,32 +147,34 @@ namespace sdk {
         return il2cpp_type_get_object(type);
     }
 
+    // ===========================================
+    // GAME IMPL
+    // ===========================================
+
     namespace game {
         void* g_PlayerManagerClass = nullptr;
         void* g_MitaManagerClass = nullptr;
         void* g_CameraClass = nullptr;
         void* g_ComponentClass = nullptr;
         void* g_TransformClass = nullptr;
+        void* g_RendererClass = nullptr;
+        void* g_ShaderClass = nullptr;
+        void* g_MaterialClass = nullptr;
 
         void* GetPlayerManager() {
             if (!g_PlayerManagerClass) {
                 g_PlayerManagerClass = GetClass("", "PlayerManager");
             }
             if (!g_PlayerManagerClass) return nullptr;
-
-            // Get static instance
             return GetStaticFieldValue((Il2CppClass*)g_PlayerManagerClass, "instance");
         }
 
         void* GetPlayerCamera() {
             void* pm = GetPlayerManager();
             if (!pm) return nullptr;
-
-            // Get 'playerCam' field
             static Il2CppField* camField = nullptr;
             if (!camField) camField = GetField((Il2CppClass*)g_PlayerManagerClass, "playerCam");
             if (!camField) return nullptr;
-
             void* cam = nullptr;
             il2cpp_field_get_value(pm, camField, &cam);
             return cam;
@@ -214,66 +190,34 @@ namespace sdk {
             return move;
         }
 
-        void* GetPlayerMoveBasic() {
-            void* pm = GetPlayerManager();
-            if (!pm) return nullptr;
-            // Some versions might use a different field, but in dump it was at 0x58
-            static Il2CppField* moveField = GetField((Il2CppClass*)GetClass("", "PlayerManager"), "move");
-            if (!moveField) return nullptr;
-            void* move = nullptr;
-            il2cpp_field_get_value(pm, moveField, &move);
-            return move;
-        }
-
         void* GetMainCamera() {
             if (!g_CameraClass) g_CameraClass = GetClass("UnityEngine", "Camera");
             if (!g_CameraClass) return nullptr;
-
             static Il2CppMethod* getMain = nullptr;
             if (!getMain) getMain = GetMethod((Il2CppClass*)g_CameraClass, "get_main", 0);
-            if (!getMain) return nullptr;
-
-            void* cam = RuntimeInvoke(getMain, nullptr, nullptr, nullptr);
-            return cam;
+            return RuntimeInvoke(getMain, nullptr, nullptr, nullptr);
         }
 
         void* FindObjectOfType(const char* className) {
              Il2CppClass* targetClass = GetClass("", className);
-             if (!targetClass) {
-                 Log("FindObjectOfType: Class '%s' not found.", className);
-                 return nullptr;
-             }
+             if (!targetClass) return nullptr;
 
              void* systemType = GetSystemType(targetClass);
-             if (!systemType) {
-                 Log("FindObjectOfType: Failed to get System.Type for '%s'.", className);
-                 return nullptr;
-             }
+             if (!systemType) return nullptr;
 
-             // Use RVA 0x19359E0 for UnityEngine.Object.FindObjectOfType(Type)
-             // RVA: 0x19359E0 Offset: 0x1934DE0 VA: 0x1819359E0
+             // RVA: 0x19359E0 for UnityEngine.Object.FindObjectOfType(Type)
              static uintptr_t rva = 0x19359E0;
              static void* (*FindObjectOfTypeFunc)(void*) = nullptr;
              
              if (!FindObjectOfTypeFunc) {
                  FindObjectOfTypeFunc = (void* (*)(void*))((uintptr_t)g_GameAssembly + rva);
-                 Log("FindObjectOfType: Resolved func at %p (Base: %p + RVA: %p)", FindObjectOfTypeFunc, g_GameAssembly, (void*)rva);
              }
 
-             void* result = FindObjectOfTypeFunc(systemType);
-             
-             if (result) Log("FindObjectOfType: Found instance of '%s' at %p", className, result);
-             else Log("FindObjectOfType: No instance of '%s' found (result is null).", className);
-             
-             return result;
+             return FindObjectOfTypeFunc(systemType);
         }
 
         void* GetMitaManager() {
-             // Try to find MitaManager via FindObjectOfType
-             // This is likely more reliable than assuming a static instance if it doesn't have one
              static void* mitaCached = nullptr;
-             
-             // Refresh every so often or if null? For now just find if null.
              if (!mitaCached) {
                  mitaCached = FindObjectOfType("MitaManager");
              }
@@ -283,17 +227,10 @@ namespace sdk {
         void* GetMitaAnimator() {
             void* mita = GetMitaManager();
             if (!mita) return nullptr;
-
-            // MitaManager has 'public Animator animManager;' at offset 0x30 according to dump
-            // Let's resolve by name to be safe
             static Il2CppClass* mitaClass = nullptr;
             if (!mitaClass) mitaClass = GetClass("", "MitaManager");
-            if (!mitaClass) return nullptr;
-
             static Il2CppField* animField = nullptr;
             if (!animField) animField = GetField(mitaClass, "animManager");
-            if (!animField) return nullptr;
-
             void* animator = nullptr;
             il2cpp_field_get_value(mita, animField, &animator);
             return animator;
@@ -302,15 +239,8 @@ namespace sdk {
         int GetMitaState() {
             void* mita = GetMitaManager();
             if (!mita) return 0;
-
-            static Il2CppClass* mitaClass = nullptr;
-            if (!mitaClass) mitaClass = GetClass("", "MitaManager");
-            if (!mitaClass) return 0;
-
-            static Il2CppField* stateField = nullptr;
-            if (!stateField) stateField = GetField(mitaClass, "state");
-            if (!stateField) return 0;
-
+            static Il2CppClass* mitaClass = GetClass("", "MitaManager");
+            static Il2CppField* stateField = GetField(mitaClass, "state");
             int state = 0;
             il2cpp_field_get_value(mita, stateField, &state);
             return state;
@@ -319,27 +249,16 @@ namespace sdk {
         int GetMitaMovementState() {
             void* mita = GetMitaManager();
             if (!mita) return 0;
-
-            static Il2CppClass* mitaClass = nullptr;
-            if (!mitaClass) mitaClass = GetClass("", "MitaManager");
-            if (!mitaClass) return 0;
-
-            static Il2CppField* moveField = nullptr;
-            if (!moveField) moveField = GetField(mitaClass, "move");
-            if (!moveField) return 0;
-
+            static Il2CppClass* mitaClass = GetClass("", "MitaManager");
+            static Il2CppField* moveField = GetField(mitaClass, "move");
+            
             void* mitaMove = nullptr;
             il2cpp_field_get_value(mita, moveField, &mitaMove);
             if (!mitaMove) return 0;
 
-            static Il2CppClass* moveClass = nullptr;
-            if (!moveClass) moveClass = GetClass("", "MitaMove");
-            if (!moveClass) return 0;
-
-            static Il2CppField* movStateField = nullptr;
-            if (!movStateField) movStateField = GetField(moveClass, "movementState");
-            if (!movStateField) return 0;
-
+            static Il2CppClass* moveClass = GetClass("", "MitaMove");
+            static Il2CppField* movStateField = GetField(moveClass, "movementState");
+            
             int state = 0;
             il2cpp_field_get_value(mitaMove, movStateField, &state);
             return state;
@@ -347,36 +266,17 @@ namespace sdk {
 
         void SetSpeed(void* movement, float speed) {
             if (!movement) return;
-            
-            // In the dump, PlayerManager.move is kiriMoveBasic (TypeDefIndex: 4197).
             // kiriMoveBasic: walkSpeed at 0x1C.
-            // kiriMove: walkSpeed at 0x18.
-            // We'll write to both but avoiding 0x18 if we suspect it's Basic (to not break canMove).
-            
-            // Check if 0x1C looks like a speed float (around 1.0-20.0)
-            float speed1C = *(float*)((uintptr_t)movement + 0x1C);
-            if (speed1C > 0.1f && speed1C < 50.0f) {
-                *(float*)((uintptr_t)movement + 0x1C) = speed;
-                // Also ensure canMove is on
-                *(bool*)((uintptr_t)movement + 0x18) = true;
-            } else {
-                // If 0x1C is not speed, maybe it's 0x18
-                *(float*)((uintptr_t)movement + 0x18) = speed;
-            }
+            *(float*)((uintptr_t)movement + 0x1C) = speed;
+            // Also ensure canMove is on (0x18)
+            *(bool*)((uintptr_t)movement + 0x18) = true;
         }
 
         void* GetPlayerRigidbody() {
             void* pm = GetPlayerManager();
             if (!pm) return nullptr;
-
-            static Il2CppClass* pmClass = nullptr;
-            if (!pmClass) pmClass = GetClass("", "PlayerManager");
-            if (!pmClass) return nullptr;
-
-            static Il2CppField* rbField = nullptr;
-            if (!rbField) rbField = GetField(pmClass, "rb");
-            if (!rbField) return nullptr;
-
+            static Il2CppClass* pmClass = GetClass("", "PlayerManager");
+            static Il2CppField* rbField = GetField(pmClass, "rb");
             void* rb = nullptr;
             il2cpp_field_get_value(pm, rbField, &rb);
             return rb;
@@ -385,15 +285,8 @@ namespace sdk {
         void* GetPlayerCollider() {
             void* pm = GetPlayerManager();
             if (!pm) return nullptr;
-
-            static Il2CppClass* pmClass = nullptr;
-            if (!pmClass) pmClass = GetClass("", "PlayerManager");
-            if (!pmClass) return nullptr;
-
-            static Il2CppField* colField = nullptr;
-            if (!colField) colField = GetField(pmClass, "col");
-            if (!colField) return nullptr;
-
+            static Il2CppClass* pmClass = GetClass("", "PlayerManager");
+            static Il2CppField* colField = GetField(pmClass, "col");
             void* col = nullptr;
             il2cpp_field_get_value(pm, colField, &col);
             return col;
@@ -411,13 +304,7 @@ namespace sdk {
                 if (!resolve_icall) resolve_icall = (t_il2cpp_resolve_icall)GetProcAddress(GetModuleHandleA("GameAssembly.dll"), "il2cpp_resolve_icall");
                 if (resolve_icall) s_fn = (fnSetKinematic)resolve_icall("UnityEngine.Rigidbody::set_isKinematic(System.Boolean)");
             }
-            
             if (s_fn) s_fn(rb, enabled);
-            else {
-                // Fallback RVA: 0x19927F0
-                static void(__fastcall* rva_fn)(void*, bool) = (void(__fastcall*)(void*, bool))((uintptr_t)GetModuleHandleA("GameAssembly.dll") + 0x19927F0);
-                rva_fn(rb, enabled);
-            }
         }
 
         void SetColliderEnabled(void* col, bool enabled) {
@@ -429,13 +316,7 @@ namespace sdk {
                 if (!resolve_icall) resolve_icall = (t_il2cpp_resolve_icall)GetProcAddress(GetModuleHandleA("GameAssembly.dll"), "il2cpp_resolve_icall");
                 if (resolve_icall) s_fn = (fnSetEnabled)resolve_icall("UnityEngine.Collider::set_enabled(System.Boolean)");
             }
-            
             if (s_fn) s_fn(col, enabled);
-            else {
-                // Fallback RVA: 0x198D710
-                static void(__fastcall* rva_fn)(void*, bool) = (void(__fastcall*)(void*, bool))((uintptr_t)GetModuleHandleA("GameAssembly.dll") + 0x198D710);
-                rva_fn(col, enabled);
-            }
         }
 
         Vector3 GetTransformPosition(void* transform) {
@@ -444,28 +325,21 @@ namespace sdk {
             
             static Il2CppMethod* getPos = nullptr;
             if (!getPos) getPos = GetMethod((Il2CppClass*)g_TransformClass, "get_position", 0);
-            if (!getPos) return {0,0,0};
 
             Vector3 res = {0,0,0};
             void* ret = RuntimeInvoke(getPos, transform, nullptr, nullptr);
             if (ret) {
-                 res = *(Vector3*)((char*)ret + 0x10); // Unbox
+                 res = *(Vector3*)((char*)ret + 0x10); 
             }
             return res;
         }
 
         Vector3 GetPosition(void* component) {
             if (!component) return {0,0,0};
-            
-            // If it IS a transform, use it directly
-            // But we don't have easy type check. Assume it's a Component.
-            
             if (!g_ComponentClass) g_ComponentClass = GetClass("UnityEngine", "Component");
             
             static Il2CppMethod* getTrans = nullptr;
             if (!getTrans) getTrans = GetMethod((Il2CppClass*)g_ComponentClass, "get_transform", 0);
-            
-            if (!getTrans) return {0,0,0};
             
             void* transform = RuntimeInvoke(getTrans, component, nullptr, nullptr);
             return GetTransformPosition(transform);
@@ -474,19 +348,17 @@ namespace sdk {
         Vector3 GetBonePosition(void* animator, int boneId) {
             if (!animator) return {0,0,0};
             static Il2CppClass* animatorClass = GetClass("UnityEngine", "Animator");
-            if (!animatorClass) return {0,0,0};
-
             static Il2CppMethod* getBoneTransform = GetMethod(animatorClass, "GetBoneTransform", 1);
-            if (!getBoneTransform) return {0,0,0};
 
-            void* args[1] = { &boneId }; // HumanBodyBones enum is int-sized
+            void* args[1] = { &boneId };
             void* transform = RuntimeInvoke(getBoneTransform, animator, args, nullptr);
-            
             return GetTransformPosition(transform);
         }
 
-        // Direct RVA function pointers for matrix getters (bypasses RuntimeInvoke instability)
-        // These _Injected methods write directly to output parameter
+        // ===========================================
+        // MANUAL W2S IMPLEMENTATION
+        // ===========================================
+        
         typedef void(__fastcall* t_get_worldToCameraMatrix_Injected)(void* camera, Matrix4x4* ret);
         typedef void(__fastcall* t_get_projectionMatrix_Injected)(void* camera, Matrix4x4* ret);
         
@@ -495,12 +367,9 @@ namespace sdk {
         
         Matrix4x4 GetViewMatrix(void* camera) {
             if (!camera) return {0};
-            
-            // Initialize RVA function pointer
             if (!get_worldToCameraMatrix_Injected) {
                 get_worldToCameraMatrix_Injected = (t_get_worldToCameraMatrix_Injected)((uintptr_t)g_GameAssembly + 0x190E6C0);
             }
-            
             Matrix4x4 result = {0};
             get_worldToCameraMatrix_Injected(camera, &result);
             return result;
@@ -508,57 +377,187 @@ namespace sdk {
 
         Matrix4x4 GetProjectionMatrix(void* camera) {
             if (!camera) return {0};
-            
-            // Initialize RVA function pointer
             if (!get_projectionMatrix_Injected) {
                 get_projectionMatrix_Injected = (t_get_projectionMatrix_Injected)((uintptr_t)g_GameAssembly + 0x190E370);
             }
-            
             Matrix4x4 result = {0};
             get_projectionMatrix_Injected(camera, &result);
             return result;
         }
 
-        // Cached VP matrix - updated less frequently to reduce jitter
-        static Matrix4x4 g_cachedVP = {0};
-        static void* g_cachedCam = nullptr;
-        static DWORD g_lastMatrixUpdate = 0;
-        static bool g_vpValid = false;
-        
-        // Per-entity smoothed screen positions
-        struct SmoothedScreenPos {
-            Vector3 smoothedPos;
-            Vector3 lastWorldPos;
-            bool initialized;
-        };
-        static SmoothedScreenPos g_mitaSmoothed = {{0,0,0}, {0,0,0}, false};
-        
         Vector3 WorldToScreen(Vector3 worldPos) {
             void* cam = GetMainCamera();
             if (!cam) cam = GetPlayerCamera();
             if (!cam) return {-10000, -10000, -1};
 
-            static Il2CppMethod* w2sMethod = nullptr;
-            if (!w2sMethod) {
-                Il2CppClass* camClass = GetClass("UnityEngine", "Camera");
-                w2sMethod = GetMethod(camClass, "WorldToScreenPoint", 1);
-            }
-            
-            if (!w2sMethod) return {-10000, -10000, -1};
+            Matrix4x4 view = GetViewMatrix(cam);
+            Matrix4x4 proj = GetProjectionMatrix(cam);
+            Matrix4x4 vp = Matrix4x4::Multiply(proj, view); // VP = P * V
 
-            void* params[1] = { &worldPos };
-            void* ret = RuntimeInvoke(w2sMethod, cam, params, nullptr);
-            if (!ret) return {-10000, -10000, -1};
+            // Transform [x,y,z,1]
+            float x = worldPos.x * vp(0, 0) + worldPos.y * vp(0, 1) + worldPos.z * vp(0, 2) + vp(0, 3);
+            float y = worldPos.x * vp(1, 0) + worldPos.y * vp(1, 1) + worldPos.z * vp(1, 2) + vp(1, 3);
+            float z = worldPos.x * vp(2, 0) + worldPos.y * vp(2, 1) + worldPos.z * vp(2, 2) + vp(2, 3);
+            float w = worldPos.x * vp(3, 0) + worldPos.y * vp(3, 1) + worldPos.z * vp(3, 2) + vp(3, 3);
 
-            Vector3 res = *(Vector3*)((char*)ret + 0x10);
+            if (w < 0.1f) return {-10000, -10000, -1}; // Behind camera
+
+            Vector3 screen = {x/w, y/w, z/w};
             
-            // Flip Y for ImGui
+            // Convert NDC to Screen
             ImGuiIO& io = ImGui::GetIO();
-            res.y = io.DisplaySize.y - res.y;
+            screen.x = (screen.x + 1.0f) * 0.5f * io.DisplaySize.x;
+            screen.y = (1.0f - screen.y) * 0.5f * io.DisplaySize.y; // Flip Y for ImGui
             
-            return res;
+            return screen;
         }
 
+        // ===========================================
+        // CHAMS HELPERS
+        // ===========================================
 
+        void RecursiveFindRenderers(void* transform, std::vector<void*>& results) {
+            if (!transform) return;
+
+            if (!g_ComponentClass) g_ComponentClass = GetClass("UnityEngine", "Component");
+            if (!g_RendererClass) g_RendererClass = GetClass("UnityEngine", "Renderer");
+            if (!g_TransformClass) g_TransformClass = GetClass("UnityEngine", "Transform");
+
+            // Check if this transform has a renderer
+            static Il2CppMethod* getComp = nullptr;
+            if (!getComp) getComp = GetMethod((Il2CppClass*)g_ComponentClass, "GetComponent", 1); // Generic? No, use Type
+            // Actually GetComponent(Type) RVA is 0x192E210?
+            // Let's use RuntimeInvoke on 'GetComponent(Type)'
+            
+            // We need Type object.
+            void* rendererType = GetSystemType((Il2CppClass*)g_RendererClass);
+            
+            // GetComponent(Type)
+            static Il2CppMethod* getCompType = nullptr;
+            if (!getCompType) getCompType = GetMethod((Il2CppClass*)g_ComponentClass, "GetComponent", 1); // overload with Type argument?
+            
+            // To call GetComponent(Type), we need to find it by name and args count
+            // Note: GetComponent has many overloads. 
+            // 0 args = Generic (can't use easily)
+            // 1 arg = Type typeof(T) usually.
+            
+            void* params[1] = { rendererType };
+            void* renderer = RuntimeInvoke(getCompType, transform, params, nullptr);
+            if (renderer) {
+                results.push_back(renderer);
+            }
+
+            // Iterate children
+            static Il2CppMethod* getChildCount = nullptr;
+            static Il2CppMethod* getChild = nullptr;
+            if (!getChildCount) getChildCount = GetMethod((Il2CppClass*)g_TransformClass, "get_childCount", 0);
+            if (!getChild) getChild = GetMethod((Il2CppClass*)g_TransformClass, "GetChild", 1);
+
+            int count = 0;
+            void* retCount = RuntimeInvoke(getChildCount, transform, nullptr, nullptr);
+            if (retCount) count = *(int*)((char*)retCount + 0x10);
+
+            for (int i = 0; i < count; i++) {
+                void* argsChild[1] = { &i };
+                void* childM = RuntimeInvoke(getChild, transform, argsChild, nullptr);
+                RecursiveFindRenderers(childM, results);
+            }
+        }
+
+        std::vector<void*> GetRenderers(void* gameObjectOrComponent) {
+            std::vector<void*> results;
+            if (!gameObjectOrComponent) return results;
+
+            // Get Transform first
+            void* transform = nullptr;
+            // Check if it's already a transform? Hard to tell. Assume Component.
+            if (!g_ComponentClass) g_ComponentClass = GetClass("UnityEngine", "Component");
+            static Il2CppMethod* getTrans = nullptr;
+            if (!getTrans) getTrans = GetMethod((Il2CppClass*)g_ComponentClass, "get_transform", 0);
+            
+            transform = RuntimeInvoke(getTrans, gameObjectOrComponent, nullptr, nullptr);
+            
+            RecursiveFindRenderers(transform, results);
+            return results;
+        }
+
+        void* FindShader(const char* shaderName) {
+            if (!g_ShaderClass) g_ShaderClass = GetClass("UnityEngine", "Shader");
+            static Il2CppMethod* findMethod = nullptr;
+            if (!findMethod) findMethod = GetMethod((Il2CppClass*)g_ShaderClass, "Find", 1);
+            
+            Il2CppString* str = nullptr; // Need string creation? 
+            // In il2cpp, strings are objects. We need il2cpp_string_new
+            // But we don't have it imported in sdk.cpp explicitly?
+            // It should be exported by GameAssembly. 
+            // Actually, we can just pass a C-string if we are lucky? NO.
+            // We need to resolve il2cpp_string_new.
+            
+            static void* (*il2cpp_string_new)(const char*) = nullptr;
+            if (!il2cpp_string_new) {
+                il2cpp_string_new = (void* (*)(const char*))GetProcAddress(g_GameAssembly, "il2cpp_string_new");
+            }
+            if (!il2cpp_string_new) return nullptr;
+
+            void* strObj = il2cpp_string_new(shaderName);
+            void* params[1] = { strObj };
+            
+            return RuntimeInvoke(findMethod, nullptr, params, nullptr);
+        }
+
+        void* CreateMaterial(void* shader) {
+            if (!shader) return nullptr;
+            if (!g_MaterialClass) g_MaterialClass = GetClass("UnityEngine", "Material");
+            
+            // We need to call Constructor. RuntimeInvoke on .ctor?
+            // But we need to allocate the object first? 
+            // In Unity/Il2Cpp, creating a new object is usually done via il2cpp_object_new then constructor.
+            // But Material(Shader) might be special.
+            
+            // Better way: use object_new
+            static void* (*il2cpp_object_new)(Il2CppClass*) = nullptr;
+             if (!il2cpp_object_new) {
+                il2cpp_object_new = (void* (*)(Il2CppClass*))GetProcAddress(g_GameAssembly, "il2cpp_object_new");
+            }
+            
+            void* matObj = il2cpp_object_new((Il2CppClass*)g_MaterialClass);
+            
+            static Il2CppMethod* ctor = nullptr;
+            if (!ctor) ctor = GetMethod((Il2CppClass*)g_MaterialClass, ".ctor", 1); // (Shader)
+            
+            void* params[1] = { shader };
+            RuntimeInvoke(ctor, matObj, params, nullptr);
+            
+            return matObj;
+        }
+
+        void SetMaterial(void* renderer, void* material) {
+             if (!renderer) return;
+             if (!g_RendererClass) g_RendererClass = GetClass("UnityEngine", "Renderer");
+             
+             static Il2CppMethod* setMat = nullptr;
+             if (!setMat) setMat = GetMethod((Il2CppClass*)g_RendererClass, "set_material", 1);
+             
+             void* params[1] = { material };
+             RuntimeInvoke(setMat, renderer, params, nullptr);
+        }
+
+        void SetMaterialColor(void* material, float r, float g, float b, float a) {
+            if (!material) return;
+             if (!g_MaterialClass) g_MaterialClass = GetClass("UnityEngine", "Material");
+             
+             static Il2CppMethod* setError = nullptr;
+             // Check if "SetColor" exists or property "color"?
+             // Material has "set_color"
+             static Il2CppMethod* setColor = nullptr;
+             if (!setColor) setColor = GetMethod((Il2CppClass*)g_MaterialClass, "set_color", 1);
+             
+             // Color struct? We need to pass it.
+             struct Color { float r,g,b,a; };
+             Color c = {r,g,b,a};
+             void* params[1] = { &c };
+             
+             RuntimeInvoke(setColor, material, params, nullptr);
+        }
     }
 }

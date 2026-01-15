@@ -1,4 +1,5 @@
 #include "features.h"
+#include "chams.h"
 #include "../config/config.h"
 #include <imgui.h>
 #include <algorithm>
@@ -73,13 +74,11 @@ namespace features {
         // Called every frame - update all enabled features
         
         static bool lastNoClip = false;
-        static float originalSpeed = 6.0f; // Default guess
-
+        
         void* rb = sdk::game::GetPlayerRigidbody();
         void* col = sdk::game::GetPlayerCollider();
         void* move = sdk::game::GetPlayerMovement();
-        if (!move) move = sdk::game::GetPlayerMoveBasic();
-
+        
         // NoClip logic
         bool noClipActive = config::g_config.misc.no_clip.IsActive();
         if (noClipActive != lastNoClip) {
@@ -104,6 +103,9 @@ namespace features {
                 sdk::game::SetSpeed(move, 6.0f);
             }
         }
+
+        // Chams
+        chams::OnTick();
 
         // World Features
         // config::g_config.visuals.fullbright.IsActive() ...
@@ -195,9 +197,6 @@ namespace features {
                          sdk::Vector3 worldPos = sdk::game::GetPosition(pm);
                          sdk::Vector3 screenPos = sdk::game::WorldToScreen(worldPos);
                          
-                         // Fix Y for Debug View too - SDK now returns ImGui coords, no manual flip needed unless comparing to Unity raw
-                         // screenPos.y = ImGui::GetIO().DisplaySize.y - screenPos.y; // REMOVED
-                         
                          ImGui::Text("Player W2S: %.1f, %.1f", screenPos.x, screenPos.y);
                     }
                 }
@@ -221,11 +220,6 @@ namespace features {
                  void* anim = sdk::game::GetMitaAnimator();
                  
                  if (anim) {
-                     // HumanBodyBones enum values:
-                     // 0 = Hips, 1 = LeftUpperLeg, 2 = RightUpperLeg, 5 = LeftFoot, 6 = RightFoot
-                     // 7 = Spine, 10 = Head, 11 = LeftShoulder, 12 = RightShoulder
-                     // 13 = LeftUpperArm, 14 = RightUpperArm, 17 = LeftHand, 18 = RightHand
-                     
                      // Get key bone positions for bounding box
                      sdk::Vector3 headWorld = sdk::game::GetBonePosition(anim, 10);      // Head
                      sdk::Vector3 hipsWorld = sdk::game::GetBonePosition(anim, 0);       // Hips (center mass)
