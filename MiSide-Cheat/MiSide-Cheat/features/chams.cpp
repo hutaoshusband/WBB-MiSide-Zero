@@ -13,7 +13,7 @@ namespace features {
         void OnTick() {
             // Check config directly or local enabled? features.cpp maps config to enabled boolean pointer usually.
             // But here we might just use the global config.
-            if (!config::g_config.visuals.chams.enabled) return;
+            if (!config::g_config.visuals.chams.IsActive()) return;
 
             void* mita = sdk::game::GetMitaManager();
             if (!mita) return;

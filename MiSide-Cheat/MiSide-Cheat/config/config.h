@@ -34,9 +34,9 @@ namespace config {
     struct VisualsSettings {
         // ESP
         Bind esp;
-        bool esp_box = true;
-        bool esp_name = true;
-        bool esp_health = true;
+        bool esp_box = false;
+        bool esp_name = false;
+        bool esp_health = false;
         bool esp_distance = false;
         float esp_max_distance = 500.0f;
         float esp_box_color[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
@@ -96,7 +96,7 @@ namespace config {
         Bind teleport;
 
         // Developer / Debug
-        bool debug_view = true;
+        bool debug_view = false;
 
         bool speed_hack_enabled = false; // Legacy
         bool fly_hack_enabled = false; // Legacy

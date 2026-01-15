@@ -5,7 +5,7 @@ namespace config {
     struct Bind {
         bool enabled = false;
         int key = 0;
-        int mode = 2; // 0=Hold, 1=Toggle, 2=Always On (Default to Always On)
+        int mode = 1; // 0=Hold, 1=Toggle, 2=Always On
         bool active = false;
         bool key_was_down = false;
 

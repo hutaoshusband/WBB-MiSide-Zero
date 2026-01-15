@@ -426,6 +426,23 @@ namespace ui {
             }
             
             ImGui::PopStyleColor(3);
+            
+            Separator();
+            ImGui::Spacing();
+            
+            // Config System
+            ImGui::Text("Configs:");
+            static char cfgName[32] = "default";
+            ImGui::InputText("##configname", cfgName, 32);
+            
+            if (ImGui::Button("Save Config", ImVec2((half_width - 40) / 2, 30 * dpi_scale))) {
+                config::Save(cfgName);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Load Config", ImVec2((half_width - 40) / 2, 30 * dpi_scale))) {
+                config::Load(cfgName);
+            }
+
         }
         EndChild();
         
