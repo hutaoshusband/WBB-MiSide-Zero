@@ -384,6 +384,8 @@ namespace ui {
             // Game
             BeginChild("Game Modifications", ImVec2(-1, available_height - 40 * dpi_scale));
             {
+                Checkbox("Debug View", &config::g_config.misc.debug_view);
+                Separator();
                 ImGui::TextDisabled("Game-specific features will be added here.");
                 ImGui::TextDisabled("(Requires game hooking implementation)");
             }

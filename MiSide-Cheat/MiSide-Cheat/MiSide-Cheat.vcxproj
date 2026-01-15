@@ -137,6 +137,7 @@
     <ClCompile Include="external\minhook\hook.c" />
     <ClCompile Include="external\minhook\trampoline.c" />
     <ClCompile Include="external\minhook\hde\hde64.c" />
+    <ClCompile Include="sdk\sdk.cpp" />
   </ItemGroup>
   
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -146,9 +146,13 @@ namespace render {
         ui::RenderModuleList();
         
         // Render menu if open
+        // Render menu if open
         if (menu::g_bOpen) {
             menu::RenderMenu();
         }
+
+        // Render features (ESP, Debug View, etc)
+        features::OnRender();
     }
     
     void InvalidateDeviceObjects() {

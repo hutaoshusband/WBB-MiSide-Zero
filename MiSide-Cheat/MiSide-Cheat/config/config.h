@@ -90,6 +90,9 @@ namespace config {
         // Teleport
         bool teleport_enabled = false;
         int teleport_key = VK_F5;
+
+        // Developer / Debug
+        bool debug_view = true;
     };
     
     // ============================================================
