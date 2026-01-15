@@ -104,10 +104,13 @@ namespace sdk {
         // Components
         void* GetPlayerCamera(); // From PlayerManager
         void* GetMainCamera();   // From Unity Static Property
+        void* GetPlayerMovement(); // kiriMove
+        void* GetPlayerMoveBasic(); // kiriMoveBasic
         
         Vector3 GetTransformPosition(void* transform);
         Vector3 GetPosition(void* gameObjectOrComponent); // Smart wrapper
         Vector3 GetBonePosition(void* animator, int boneId);
+        void SetSpeed(void* movement, float speed);
 
         // Matrix
         Matrix4x4 GetViewMatrix(void* camera);
@@ -115,5 +118,13 @@ namespace sdk {
 
         // World to Screen
         Vector3 WorldToScreen(Vector3 worldPos);
+
+        // State & Components
+        int GetMitaState();
+        int GetMitaMovementState();
+        void* GetPlayerRigidbody();
+        void* GetPlayerCollider();
+        void SetRigidbodyKinematic(void* rb, bool enabled);
+        void SetColliderEnabled(void* col, bool enabled);
     }
 }

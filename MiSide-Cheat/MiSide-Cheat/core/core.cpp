@@ -1,6 +1,7 @@
 #include "core.h"
 #include "../hooks/hooks.h"
 #include "../render/render.h"
+#include "../features/features.h"
 #include <thread>
 #include <chrono>
 
@@ -41,7 +42,8 @@ namespace core {
         
         // Main loop - wait for unload key (END key) OR menu unload button
         while (!GetAsyncKeyState(VK_END) && !g_bShouldUnload) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            features::OnTick();
+            std::this_thread::sleep_for(std::chrono::milliseconds(16));
         }
         
         // Cleanup

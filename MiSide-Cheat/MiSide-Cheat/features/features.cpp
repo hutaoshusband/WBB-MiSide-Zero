@@ -15,27 +15,27 @@ namespace features {
         std::vector<ModuleInfo> modules;
         
         // Visuals
-        modules.push_back({ "ESP",           "Visuals",  &config::g_config.visuals.esp_enabled });
-        modules.push_back({ "Chams",         "Visuals",  &config::g_config.visuals.chams_enabled });
-        modules.push_back({ "Fullbright",    "Visuals",  &config::g_config.visuals.fullbright });
-        modules.push_back({ "No Fog",        "Visuals",  &config::g_config.visuals.no_fog });
-        modules.push_back({ "Crosshair",     "Visuals",  &config::g_config.visuals.crosshair });
+        modules.push_back({ "ESP",           "Visuals",  &config::g_config.visuals.esp.enabled });
+        modules.push_back({ "Chams",         "Visuals",  &config::g_config.visuals.chams.enabled });
+        modules.push_back({ "Fullbright",    "Visuals",  &config::g_config.visuals.fullbright.enabled });
+        modules.push_back({ "No Fog",        "Visuals",  &config::g_config.visuals.no_fog.enabled });
+        modules.push_back({ "Crosshair",     "Visuals",  &config::g_config.visuals.crosshair.enabled });
         
         // Aimbot
-        modules.push_back({ "Aimbot",        "Aimbot",   &config::g_config.aimbot.enabled });
+        modules.push_back({ "Aimbot",        "Aimbot",   &config::g_config.aimbot.aimbot.enabled });
         
         // Movement
-        modules.push_back({ "Speed",         "Movement", &config::g_config.misc.speed_hack });
-        modules.push_back({ "Fly",           "Movement", &config::g_config.misc.fly_hack });
-        modules.push_back({ "NoClip",        "Movement", &config::g_config.misc.no_clip });
+        modules.push_back({ "Speed",         "Movement", &config::g_config.misc.speed_hack.enabled });
+        modules.push_back({ "Fly",           "Movement", &config::g_config.misc.fly_hack.enabled });
+        modules.push_back({ "NoClip",        "Movement", &config::g_config.misc.no_clip.enabled });
         
         // Player
-        modules.push_back({ "God Mode",      "Player",   &config::g_config.misc.god_mode });
-        modules.push_back({ "Inf. Stamina",  "Player",   &config::g_config.misc.infinite_stamina });
-        modules.push_back({ "Inf. Ammo",     "Player",   &config::g_config.misc.infinite_ammo });
+        modules.push_back({ "God Mode",      "Player",   &config::g_config.misc.god_mode.enabled });
+        modules.push_back({ "Inf. Stamina",  "Player",   &config::g_config.misc.infinite_stamina.enabled });
+        modules.push_back({ "Inf. Ammo",     "Player",   &config::g_config.misc.infinite_ammo.enabled });
         
         // Misc
-        modules.push_back({ "Teleport",      "Misc",     &config::g_config.misc.teleport_enabled });
+        modules.push_back({ "Teleport",      "Misc",     &config::g_config.misc.teleport.enabled });
         modules.push_back({ "Debug View",    "Misc",     &config::g_config.misc.debug_view });
         
         return modules;
@@ -71,7 +71,42 @@ namespace features {
     
     void OnTick() {
         // Called every frame - update all enabled features
-        // TODO: Implement actual feature logic here
+        
+        static bool lastNoClip = false;
+        static float originalSpeed = 6.0f; // Default guess
+
+        void* rb = sdk::game::GetPlayerRigidbody();
+        void* col = sdk::game::GetPlayerCollider();
+        void* move = sdk::game::GetPlayerMovement();
+        if (!move) move = sdk::game::GetPlayerMoveBasic();
+
+        // NoClip logic
+        bool noClipActive = config::g_config.misc.no_clip.IsActive();
+        if (noClipActive != lastNoClip) {
+            if (rb && col) {
+                if (noClipActive) {
+                    sdk::game::SetRigidbodyKinematic(rb, true);
+                    sdk::game::SetColliderEnabled(col, false);
+                } else {
+                    sdk::game::SetRigidbodyKinematic(rb, false);
+                    sdk::game::SetColliderEnabled(col, true);
+                }
+                lastNoClip = noClipActive;
+            }
+        }
+
+        // SpeedHack logic
+        if (move) {
+            if (config::g_config.misc.speed_hack.IsActive()) {
+                sdk::game::SetSpeed(move, 6.0f * config::g_config.misc.speed_multiplier);
+            } else {
+                // Return to normal speed when not active
+                sdk::game::SetSpeed(move, 6.0f);
+            }
+        }
+
+        // World Features
+        // config::g_config.visuals.fullbright.IsActive() ...
     }
     
     void OnRender() {
@@ -179,7 +214,7 @@ namespace features {
 
 
         // ESP Rendering
-        if (config::g_config.visuals.esp_enabled) {
+        if (config::g_config.visuals.esp.IsActive()) {
              void* mita = sdk::game::GetMitaManager();
              
              if (mita) {
@@ -236,10 +271,20 @@ namespace features {
                          expandBounds(leftShoulderScreen);
                          expandBounds(rightShoulderScreen);
                          
-                         // Add padding above head for hair/accessories
-                         float height = maxY - minY;
-                         minY -= height * 0.1f; // 10% padding on top
-                         
+                          
+                          // Check if Mita is running/moving to make ESP thicker
+                          float thickness = 2.0f;
+                          int mitaState = sdk::game::GetMitaState();
+                          int moveState = sdk::game::GetMitaMovementState();
+                          
+                          if (mitaState == 1 || moveState >= 2) {
+                              thickness = 4.0f; // Dicker wenn sie läuft
+                          }
+
+                          // Add padding above head for hair/accessories
+                          float height = maxY - minY;
+                          minY -= height * 0.25f; // Increased from 0.1f for better coverage (as requested)
+                          
                          // Add horizontal padding for arms/body width
                          float width = maxX - minX;
                          float paddingX = width * 0.15f;
@@ -263,7 +308,7 @@ namespace features {
                              ImColor(255, 0, 0, 255), 
                              0.0f, 
                              0, 
-                             2.0f
+                             thickness
                          );
                          
                          // Draw Name centered above box

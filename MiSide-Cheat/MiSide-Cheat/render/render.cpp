@@ -3,6 +3,7 @@
 #include "texture_loader.h"
 #include "ui/ui_widgets.h"
 #include "ui/menu.h"
+#include "../features/features.h"
 
 #include <imgui.h>
 #include <imgui_internal.h>

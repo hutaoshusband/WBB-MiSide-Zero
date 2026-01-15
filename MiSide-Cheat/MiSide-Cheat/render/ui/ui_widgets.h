@@ -5,6 +5,7 @@
 #include <string>
 #include <functional>
 #include <Windows.h>
+#include "../../bind.h"
 
 namespace render {
     extern ImFont* g_pDefaultFont;
@@ -434,6 +435,18 @@ namespace ui {
             if (ImGui::Selectable("Always On", *mode == 2)) *mode = 2;
             ImGui::EndPopup();
         }
+    }
+
+    inline bool CheckboxBind(const char* label, config::Bind* bind) {
+        float draw_scale = scale;
+        bool changed = Checkbox(label, &bind->enabled);
+        
+        ImGui::SameLine();
+        ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 110 * draw_scale);
+        
+        Keybind(("##key_" + std::string(label)).c_str(), &bind->key, &bind->mode);
+        
+        return changed;
     }
     
     // ============================================================

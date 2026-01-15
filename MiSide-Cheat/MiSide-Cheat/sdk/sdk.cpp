@@ -68,6 +68,8 @@ namespace sdk {
     bool Initialize() {
         if (g_Initialized) return true;
 
+        static t_il2cpp_resolve_icall il2cpp_resolve_icall = nullptr;
+        
         g_GameAssembly = GetModuleHandleA("GameAssembly.dll");
         if (!g_GameAssembly) return false;
 
@@ -75,6 +77,7 @@ namespace sdk {
 
         LOAD_PROC(il2cpp_domain_get);
         LOAD_PROC(il2cpp_thread_attach);
+        LOAD_PROC(il2cpp_resolve_icall);
         LOAD_PROC(il2cpp_domain_get_assemblies);
         LOAD_PROC(il2cpp_assembly_get_image);
         LOAD_PROC(il2cpp_class_from_name);
@@ -201,6 +204,27 @@ namespace sdk {
             return cam;
         }
 
+        void* GetPlayerMovement() {
+            void* pm = GetPlayerManager();
+            if (!pm) return nullptr;
+            static Il2CppField* moveField = GetField((Il2CppClass*)GetClass("", "PlayerManager"), "move");
+            if (!moveField) return nullptr;
+            void* move = nullptr;
+            il2cpp_field_get_value(pm, moveField, &move);
+            return move;
+        }
+
+        void* GetPlayerMoveBasic() {
+            void* pm = GetPlayerManager();
+            if (!pm) return nullptr;
+            // Some versions might use a different field, but in dump it was at 0x58
+            static Il2CppField* moveField = GetField((Il2CppClass*)GetClass("", "PlayerManager"), "move");
+            if (!moveField) return nullptr;
+            void* move = nullptr;
+            il2cpp_field_get_value(pm, moveField, &move);
+            return move;
+        }
+
         void* GetMainCamera() {
             if (!g_CameraClass) g_CameraClass = GetClass("UnityEngine", "Camera");
             if (!g_CameraClass) return nullptr;
@@ -273,6 +297,145 @@ namespace sdk {
             void* animator = nullptr;
             il2cpp_field_get_value(mita, animField, &animator);
             return animator;
+        }
+
+        int GetMitaState() {
+            void* mita = GetMitaManager();
+            if (!mita) return 0;
+
+            static Il2CppClass* mitaClass = nullptr;
+            if (!mitaClass) mitaClass = GetClass("", "MitaManager");
+            if (!mitaClass) return 0;
+
+            static Il2CppField* stateField = nullptr;
+            if (!stateField) stateField = GetField(mitaClass, "state");
+            if (!stateField) return 0;
+
+            int state = 0;
+            il2cpp_field_get_value(mita, stateField, &state);
+            return state;
+        }
+
+        int GetMitaMovementState() {
+            void* mita = GetMitaManager();
+            if (!mita) return 0;
+
+            static Il2CppClass* mitaClass = nullptr;
+            if (!mitaClass) mitaClass = GetClass("", "MitaManager");
+            if (!mitaClass) return 0;
+
+            static Il2CppField* moveField = nullptr;
+            if (!moveField) moveField = GetField(mitaClass, "move");
+            if (!moveField) return 0;
+
+            void* mitaMove = nullptr;
+            il2cpp_field_get_value(mita, moveField, &mitaMove);
+            if (!mitaMove) return 0;
+
+            static Il2CppClass* moveClass = nullptr;
+            if (!moveClass) moveClass = GetClass("", "MitaMove");
+            if (!moveClass) return 0;
+
+            static Il2CppField* movStateField = nullptr;
+            if (!movStateField) movStateField = GetField(moveClass, "movementState");
+            if (!movStateField) return 0;
+
+            int state = 0;
+            il2cpp_field_get_value(mitaMove, movStateField, &state);
+            return state;
+        }
+
+        void SetSpeed(void* movement, float speed) {
+            if (!movement) return;
+            
+            // In the dump, PlayerManager.move is kiriMoveBasic (TypeDefIndex: 4197).
+            // kiriMoveBasic: walkSpeed at 0x1C.
+            // kiriMove: walkSpeed at 0x18.
+            // We'll write to both but avoiding 0x18 if we suspect it's Basic (to not break canMove).
+            
+            // Check if 0x1C looks like a speed float (around 1.0-20.0)
+            float speed1C = *(float*)((uintptr_t)movement + 0x1C);
+            if (speed1C > 0.1f && speed1C < 50.0f) {
+                *(float*)((uintptr_t)movement + 0x1C) = speed;
+                // Also ensure canMove is on
+                *(bool*)((uintptr_t)movement + 0x18) = true;
+            } else {
+                // If 0x1C is not speed, maybe it's 0x18
+                *(float*)((uintptr_t)movement + 0x18) = speed;
+            }
+        }
+
+        void* GetPlayerRigidbody() {
+            void* pm = GetPlayerManager();
+            if (!pm) return nullptr;
+
+            static Il2CppClass* pmClass = nullptr;
+            if (!pmClass) pmClass = GetClass("", "PlayerManager");
+            if (!pmClass) return nullptr;
+
+            static Il2CppField* rbField = nullptr;
+            if (!rbField) rbField = GetField(pmClass, "rb");
+            if (!rbField) return nullptr;
+
+            void* rb = nullptr;
+            il2cpp_field_get_value(pm, rbField, &rb);
+            return rb;
+        }
+
+        void* GetPlayerCollider() {
+            void* pm = GetPlayerManager();
+            if (!pm) return nullptr;
+
+            static Il2CppClass* pmClass = nullptr;
+            if (!pmClass) pmClass = GetClass("", "PlayerManager");
+            if (!pmClass) return nullptr;
+
+            static Il2CppField* colField = nullptr;
+            if (!colField) colField = GetField(pmClass, "col");
+            if (!colField) return nullptr;
+
+            void* col = nullptr;
+            il2cpp_field_get_value(pm, colField, &col);
+            return col;
+        }
+
+        typedef void* (*t_il2cpp_resolve_icall)(const char*);
+        static t_il2cpp_resolve_icall resolve_icall = nullptr;
+
+        void SetRigidbodyKinematic(void* rb, bool enabled) {
+            if (!rb) return;
+            typedef void(__stdcall* fnSetKinematic)(void*, bool);
+            static fnSetKinematic s_fn = nullptr;
+            
+            if (!s_fn) {
+                if (!resolve_icall) resolve_icall = (t_il2cpp_resolve_icall)GetProcAddress(GetModuleHandleA("GameAssembly.dll"), "il2cpp_resolve_icall");
+                if (resolve_icall) s_fn = (fnSetKinematic)resolve_icall("UnityEngine.Rigidbody::set_isKinematic(System.Boolean)");
+            }
+            
+            if (s_fn) s_fn(rb, enabled);
+            else {
+                // Fallback RVA: 0x19927F0
+                static void(__fastcall* rva_fn)(void*, bool) = (void(__fastcall*)(void*, bool))((uintptr_t)GetModuleHandleA("GameAssembly.dll") + 0x19927F0);
+                rva_fn(rb, enabled);
+            }
+        }
+
+        void SetColliderEnabled(void* col, bool enabled) {
+            if (!col) return;
+            typedef void(__stdcall* fnSetEnabled)(void*, bool);
+            static fnSetEnabled s_fn = nullptr;
+            
+            if (!s_fn) {
+                if (!resolve_icall) resolve_icall = (t_il2cpp_resolve_icall)GetProcAddress(GetModuleHandleA("GameAssembly.dll"), "il2cpp_resolve_icall");
+                if (resolve_icall) s_fn = (fnSetEnabled)resolve_icall("UnityEngine.Collider::set_enabled(System.Boolean)");
+            }
+            
+            if (s_fn) s_fn(col, enabled);
+            else {
+                // Fallback RVA: 0x198D710
+                static void(__fastcall* rva_fn)(void*, bool) = (void(__fastcall*)(void*, bool))((uintptr_t)GetModuleHandleA("GameAssembly.dll") + 0x198D710);
+                rva_fn(col, enabled);
+            }
         }
 
         Vector3 GetTransformPosition(void* transform) {
@@ -373,88 +536,27 @@ namespace sdk {
         Vector3 WorldToScreen(Vector3 worldPos) {
             void* cam = GetMainCamera();
             if (!cam) cam = GetPlayerCamera();
-            if (!cam) {
-                if (g_mitaSmoothed.initialized) return g_mitaSmoothed.smoothedPos;
-                return {-10000.0f, -10000.0f, -1.0f};
-            }
+            if (!cam) return {-10000, -10000, -1};
 
-            // Update VP matrix only every 50ms (20 times per second) to reduce jitter
-            DWORD currentTick = GetTickCount();
-            if ((currentTick - g_lastMatrixUpdate) > 50 || cam != g_cachedCam || !g_vpValid) {
-                g_lastMatrixUpdate = currentTick;
-                g_cachedCam = cam;
-                
-                Matrix4x4 view = GetViewMatrix(cam);
-                Matrix4x4 proj = GetProjectionMatrix(cam);
-                
-                // Check if matrices are valid
-                bool viewValid = false;
-                bool projValid = false;
-                for (int i = 0; i < 16; i++) {
-                    if (view.m[i] != 0) viewValid = true;
-                    if (proj.m[i] != 0) projValid = true;
-                }
-                
-                if (viewValid && projValid) {
-                    g_cachedVP = Matrix4x4::Multiply(proj, view);
-                    g_vpValid = true;
-                }
+            static Il2CppMethod* w2sMethod = nullptr;
+            if (!w2sMethod) {
+                Il2CppClass* camClass = GetClass("UnityEngine", "Camera");
+                w2sMethod = GetMethod(camClass, "WorldToScreenPoint", 1);
             }
             
-            if (!g_vpValid) {
-                if (g_mitaSmoothed.initialized) return g_mitaSmoothed.smoothedPos;
-                return {-10000.0f, -10000.0f, -1.0f};
-            }
+            if (!w2sMethod) return {-10000, -10000, -1};
+
+            void* params[1] = { &worldPos };
+            void* ret = RuntimeInvoke(w2sMethod, cam, params, nullptr);
+            if (!ret) return {-10000, -10000, -1};
+
+            Vector3 res = *(Vector3*)((char*)ret + 0x10);
             
-            // Transform using cached VP matrix
-            float x = g_cachedVP.m[0] * worldPos.x + g_cachedVP.m[4] * worldPos.y + g_cachedVP.m[8] * worldPos.z + g_cachedVP.m[12];
-            float y = g_cachedVP.m[1] * worldPos.x + g_cachedVP.m[5] * worldPos.y + g_cachedVP.m[9] * worldPos.z + g_cachedVP.m[13];
-            float z = g_cachedVP.m[2] * worldPos.x + g_cachedVP.m[6] * worldPos.y + g_cachedVP.m[10] * worldPos.z + g_cachedVP.m[14];
-            float w = g_cachedVP.m[3] * worldPos.x + g_cachedVP.m[7] * worldPos.y + g_cachedVP.m[11] * worldPos.z + g_cachedVP.m[15];
-
-            if (w < 0.001f) {
-                return {-10000.0f, -10000.0f, -1.0f};
-            }
-
-            // NDC to screen
-            float ndcX = x / w;
-            float ndcY = y / w;
+            // Flip Y for ImGui
             ImGuiIO& io = ImGui::GetIO();
-            float screenX = (ndcX + 1.0f) * 0.5f * io.DisplaySize.x;
-            float screenY = (1.0f - ndcY) * 0.5f * io.DisplaySize.y;
+            res.y = io.DisplaySize.y - res.y;
             
-            Vector3 rawResult = {screenX, screenY, w};
-            
-            // ALWAYS smooth when world position is stable (eliminates all camera jitter)
-            if (g_mitaSmoothed.initialized) {
-                float worldDelta = worldPos.Distance(g_mitaSmoothed.lastWorldPos);
-                
-                // Determine smoothing factor based on world movement
-                float smoothFactor;
-                if (worldDelta < 0.01f) {
-                    // Almost no world movement - heavy smoothing (keeps position very stable)
-                    smoothFactor = 0.95f;
-                } else if (worldDelta < 0.1f) {
-                    // Slight movement - moderate smoothing
-                    smoothFactor = 0.7f;
-                } else if (worldDelta < 0.5f) {
-                    // Normal movement - light smoothing
-                    smoothFactor = 0.3f;
-                } else {
-                    // Fast movement - minimal smoothing to stay responsive
-                    smoothFactor = 0.1f;
-                }
-                
-                rawResult.x = g_mitaSmoothed.smoothedPos.x * smoothFactor + screenX * (1.0f - smoothFactor);
-                rawResult.y = g_mitaSmoothed.smoothedPos.y * smoothFactor + screenY * (1.0f - smoothFactor);
-            }
-            
-            // Update smoothed cache
-            g_mitaSmoothed.smoothedPos = rawResult;
-            g_mitaSmoothed.lastWorldPos = worldPos;
-            g_mitaSmoothed.initialized = true;
-            
-            return rawResult;
+            return res;
         }
 
 

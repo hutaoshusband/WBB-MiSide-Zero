@@ -197,8 +197,8 @@ namespace ui {
             // ESP
             BeginChild("ESP Settings", ImVec2(half_width, available_height - 40 * dpi_scale));
             {
-                Checkbox("Enable ESP", &config::g_config.visuals.esp_enabled);
-                if (config::g_config.visuals.esp_enabled) {
+                CheckboxBind("Enable ESP", &config::g_config.visuals.esp);
+                if (config::g_config.visuals.esp.enabled) {
                     Checkbox("Box", &config::g_config.visuals.esp_box);
                     Checkbox("Name", &config::g_config.visuals.esp_name);
                     Checkbox("Health", &config::g_config.visuals.esp_health);
@@ -221,8 +221,8 @@ namespace ui {
             // Chams
             BeginChild("Chams Settings", ImVec2(half_width, available_height - 40 * dpi_scale));
             {
-                Checkbox("Enable Chams", &config::g_config.visuals.chams_enabled);
-                if (config::g_config.visuals.chams_enabled) {
+                CheckboxBind("Enable Chams", &config::g_config.visuals.chams);
+                if (config::g_config.visuals.chams.enabled) {
                     const char* chams_types[] = { "Flat", "Textured", "Glow" };
                     Combo("Chams Type", &config::g_config.visuals.chams_type, chams_types, 3);
                 }
@@ -242,11 +242,11 @@ namespace ui {
             // World
             BeginChild("World Settings", ImVec2(half_width, available_height - 40 * dpi_scale));
             {
-                Checkbox("Fullbright", &config::g_config.visuals.fullbright);
-                Checkbox("No Fog", &config::g_config.visuals.no_fog);
+                CheckboxBind("Fullbright", &config::g_config.visuals.fullbright);
+                CheckboxBind("No Fog", &config::g_config.visuals.no_fog);
                 Separator();
-                Checkbox("Crosshair", &config::g_config.visuals.crosshair);
-                if (config::g_config.visuals.crosshair) {
+                CheckboxBind("Crosshair", &config::g_config.visuals.crosshair);
+                if (config::g_config.visuals.crosshair.enabled) {
                     const char* xhair_types[] = { "Cross", "Circle", "Dot" };
                     Combo("Type", &config::g_config.visuals.crosshair_type, xhair_types, 3);
                 }
@@ -277,13 +277,9 @@ namespace ui {
         
         BeginChild("Aimbot Settings", ImVec2(half_width, available_height));
         {
-            Checkbox("Enable Aimbot", &config::g_config.aimbot.enabled);
+            CheckboxBind("Enable Aimbot", &config::g_config.aimbot.aimbot);
             
-            if (config::g_config.aimbot.enabled) {
-                ImGui::Text("Aim Key:");
-                ImGui::SameLine();
-                Keybind("##aimkey", &config::g_config.aimbot.key, &config::g_config.aimbot.key_mode);
-                
+            if (config::g_config.aimbot.aimbot.enabled) {
                 SliderFloat("FOV", &config::g_config.aimbot.fov, 1.0f, 180.0f, "%.1f");
                 SliderFloat("Smooth", &config::g_config.aimbot.smooth, 1.0f, 20.0f, "%.1f");
                 
@@ -324,36 +320,35 @@ namespace ui {
             // Movement
             BeginChild("Movement Settings", ImVec2(half_width, available_height - 40 * dpi_scale));
             {
-                Checkbox("Speed Hack", &config::g_config.misc.speed_hack);
-                if (config::g_config.misc.speed_hack) {
+                CheckboxBind("Speed Hack", &config::g_config.misc.speed_hack);
+                if (config::g_config.misc.speed_hack.enabled) {
                     SliderFloat("Speed Multiplier", &config::g_config.misc.speed_multiplier, 1.0f, 5.0f, "%.1fx");
-                    ImGui::Text("Speed Key:");
-                    ImGui::SameLine();
-                    Keybind("##speedkey", &config::g_config.misc.speed_key);
                 }
                 
                 Separator();
-                Checkbox("Fly Hack", &config::g_config.misc.fly_hack);
-                if (config::g_config.misc.fly_hack) {
+                CheckboxBind("Fly Hack", &config::g_config.misc.fly_hack);
+                if (config::g_config.misc.fly_hack.enabled) {
                     SliderFloat("Fly Speed", &config::g_config.misc.fly_speed, 1.0f, 50.0f, "%.0f");
                 }
                 
                 Separator();
-                Checkbox("NoClip", &config::g_config.misc.no_clip);
+                CheckboxBind("NoClip", &config::g_config.misc.no_clip);
             }
             EndChild();
             
             ImGui::SameLine(0, 15 * dpi_scale);
             
-            BeginChild("Movement Keys", ImVec2(half_width, available_height - 40 * dpi_scale));
+            BeginChild("Movement Logic", ImVec2(half_width, available_height - 40 * dpi_scale));
             {
-                ImGui::Text("Fly Key:");
-                ImGui::SameLine();
-                Keybind("##flykey", &config::g_config.misc.fly_key);
+                ImGui::TextDisabled("How it works:");
+                ImGui::BulletText("Set Key to M2 or Shift");
+                ImGui::BulletText("Right-click key box to");
+                ImGui::BulletText("Toggle, Hold, or Always");
                 
-                ImGui::Text("NoClip Key:");
-                ImGui::SameLine();
-                Keybind("##noclipkey", &config::g_config.misc.no_clip_key);
+                Separator();
+                ImGui::TextDisabled("Current Binds:");
+                if (config::g_config.misc.speed_hack.IsActive()) ImGui::TextColored(accent_color, "Speed Hack [ACTIVE]");
+                if (config::g_config.misc.no_clip.IsActive()) ImGui::TextColored(accent_color, "NoClip [ACTIVE]");
             }
             EndChild();
         }
@@ -361,9 +356,9 @@ namespace ui {
             // Player
             BeginChild("Player Cheats", ImVec2(half_width, available_height - 40 * dpi_scale));
             {
-                Checkbox("God Mode", &config::g_config.misc.god_mode);
-                Checkbox("Infinite Stamina", &config::g_config.misc.infinite_stamina);
-                Checkbox("Infinite Ammo", &config::g_config.misc.infinite_ammo);
+                CheckboxBind("God Mode", &config::g_config.misc.god_mode);
+                CheckboxBind("Infinite Stamina", &config::g_config.misc.infinite_stamina);
+                CheckboxBind("Infinite Ammo", &config::g_config.misc.infinite_ammo);
             }
             EndChild();
             
@@ -371,12 +366,7 @@ namespace ui {
             
             BeginChild("Teleport", ImVec2(half_width, available_height - 40 * dpi_scale));
             {
-                Checkbox("Teleport", &config::g_config.misc.teleport_enabled);
-                if (config::g_config.misc.teleport_enabled) {
-                    ImGui::Text("Teleport Key:");
-                    ImGui::SameLine();
-                    Keybind("##teleportkey", &config::g_config.misc.teleport_key);
-                }
+                CheckboxBind("Teleport", &config::g_config.misc.teleport);
             }
             EndChild();
         }

@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <Windows.h>
+#include "../bind.h"
 
 // ============================================================
 // Config Structure for MiSide-Zero
@@ -10,6 +11,11 @@
 
 namespace config {
     
+    // ============================================================
+    // Common Types
+    // ============================================================
+    // Bind moved to bind.h
+
     // ============================================================
     // Menu Settings
     // ============================================================
@@ -27,7 +33,7 @@ namespace config {
     // ============================================================
     struct VisualsSettings {
         // ESP
-        bool esp_enabled = false;
+        Bind esp;
         bool esp_box = true;
         bool esp_name = true;
         bool esp_health = true;
@@ -35,35 +41,37 @@ namespace config {
         float esp_max_distance = 500.0f;
         float esp_box_color[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
         
-        // Chams (for future)
-        bool chams_enabled = false;
+        // Chams
+        Bind chams;
         int chams_type = 0;  // 0=Flat, 1=Textured, etc.
         float chams_color[4] = { 1.0f, 0.0f, 1.0f, 1.0f };
         
         // World
-        bool fullbright = false;
-        bool no_fog = false;
+        Bind fullbright;
+        Bind no_fog;
         
         // Other
-        bool crosshair = false;
+        Bind crosshair;
         int crosshair_type = 0;
         float crosshair_color[4] = { 0.0f, 1.0f, 0.0f, 1.0f };
+        
+        // Re-mapping for old feature naming
+        bool esp_enabled = false; // Legacy, will be kept for compatibility if needed
     };
     
     // ============================================================
-    // Aimbot Category (for shooter-like games)
+    // Aimbot Category
     // ============================================================
     struct AimbotSettings {
-        bool enabled = false;
-        int key = VK_RBUTTON;
-        int key_mode = 0;  // 0=Hold, 1=Toggle, 2=Always
-        
+        Bind aimbot;
         float fov = 10.0f;
         float smooth = 5.0f;
         int bone = 0;  // Target bone
         
         bool visible_only = true;
         bool team_check = true;
+
+        bool enabled = false; // Legacy
     };
     
     // ============================================================
@@ -71,28 +79,28 @@ namespace config {
     // ============================================================
     struct MiscSettings {
         // Player
-        bool speed_hack = false;
+        Bind speed_hack;
         float speed_multiplier = 1.5f;
-        int speed_key = VK_SHIFT;
         
-        bool fly_hack = false;
-        int fly_key = VK_SPACE;
+        Bind fly_hack;
         float fly_speed = 10.0f;
         
-        bool no_clip = false;
-        int no_clip_key = VK_CONTROL;
+        Bind no_clip;
         
         // Game
-        bool infinite_stamina = false;
-        bool god_mode = false;
-        bool infinite_ammo = false;
+        Bind infinite_stamina;
+        Bind god_mode;
+        Bind infinite_ammo;
         
         // Teleport
-        bool teleport_enabled = false;
-        int teleport_key = VK_F5;
+        Bind teleport;
 
         // Developer / Debug
         bool debug_view = true;
+
+        bool speed_hack_enabled = false; // Legacy
+        bool fly_hack_enabled = false; // Legacy
+        bool no_clip_enabled = false; // Legacy
     };
     
     // ============================================================
