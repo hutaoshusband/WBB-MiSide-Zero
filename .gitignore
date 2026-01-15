@@ -31,7 +31,6 @@ ipch/
 *.cache
 
 ## Generated files
-Dump/
 *.csv
 *.xml
 *.json

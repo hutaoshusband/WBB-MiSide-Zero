@@ -42,6 +42,27 @@ namespace sdk {
         float x, y, z, w;
     };
 
+    struct Matrix4x4 {
+        float m[16]; // Unity is column-major usually, but let's just treat as 16 floats
+        
+        static Matrix4x4 Multiply(const Matrix4x4& lhs, const Matrix4x4& rhs) {
+            Matrix4x4 res;
+            for (int r = 0; r < 4; r++) {
+                for (int c = 0; c < 4; c++) {
+                    float sum = 0;
+                    for (int i = 0; i < 4; i++) {
+                        // m[row + col*4] if column major? 
+                        // Unity: m00(0), m10(1), m20(2), m30(3) make up first column.
+                        // Accessing element at row r, col c: m[r + c*4]
+                        sum += lhs.m[r + i * 4] * rhs.m[i + c * 4];
+                    }
+                    res.m[r + c * 4] = sum;
+                }
+            }
+            return res;
+        }
+    };
+
     // ============================================================
     // API Wrappers
     // ============================================================
@@ -77,13 +98,21 @@ namespace sdk {
 
         // Managers
         void* GetPlayerManager();
-        void* GetMitaManager(); // Try to find
-        
+        void* GetMitaManager(); 
+        void* GetMitaAnimator(); // New: Get Animator from MitaManager
+
         // Components
         void* GetPlayerCamera(); // From PlayerManager
+        void* GetMainCamera();   // From Unity Static Property
+        
         Vector3 GetTransformPosition(void* transform);
         Vector3 GetPosition(void* gameObjectOrComponent); // Smart wrapper
-        
+        Vector3 GetBonePosition(void* animator, int boneId);
+
+        // Matrix
+        Matrix4x4 GetViewMatrix(void* camera);
+        Matrix4x4 GetProjectionMatrix(void* camera);
+
         // World to Screen
         Vector3 WorldToScreen(Vector3 worldPos);
     }

@@ -201,6 +201,18 @@ namespace sdk {
             return cam;
         }
 
+        void* GetMainCamera() {
+            if (!g_CameraClass) g_CameraClass = GetClass("UnityEngine", "Camera");
+            if (!g_CameraClass) return nullptr;
+
+            static Il2CppMethod* getMain = nullptr;
+            if (!getMain) getMain = GetMethod((Il2CppClass*)g_CameraClass, "get_main", 0);
+            if (!getMain) return nullptr;
+
+            void* cam = RuntimeInvoke(getMain, nullptr, nullptr, nullptr);
+            return cam;
+        }
+
         void* FindObjectOfType(const char* className) {
              Il2CppClass* targetClass = GetClass("", className);
              if (!targetClass) {
@@ -233,12 +245,34 @@ namespace sdk {
         }
 
         void* GetMitaManager() {
-             // Test PlayerManager first to verify system
-             FindObjectOfType("PlayerManager"); // This updates the log
+             // Try to find MitaManager via FindObjectOfType
+             // This is likely more reliable than assuming a static instance if it doesn't have one
+             static void* mitaCached = nullptr;
              
-             // Then try MitaManager
-             void* mita = FindObjectOfType("MitaManager");
-             return mita;
+             // Refresh every so often or if null? For now just find if null.
+             if (!mitaCached) {
+                 mitaCached = FindObjectOfType("MitaManager");
+             }
+             return mitaCached;
+        }
+
+        void* GetMitaAnimator() {
+            void* mita = GetMitaManager();
+            if (!mita) return nullptr;
+
+            // MitaManager has 'public Animator animManager;' at offset 0x30 according to dump
+            // Let's resolve by name to be safe
+            static Il2CppClass* mitaClass = nullptr;
+            if (!mitaClass) mitaClass = GetClass("", "MitaManager");
+            if (!mitaClass) return nullptr;
+
+            static Il2CppField* animField = nullptr;
+            if (!animField) animField = GetField(mitaClass, "animManager");
+            if (!animField) return nullptr;
+
+            void* animator = nullptr;
+            il2cpp_field_get_value(mita, animField, &animator);
+            return animator;
         }
 
         Vector3 GetTransformPosition(void* transform) {
@@ -249,20 +283,20 @@ namespace sdk {
             if (!getPos) getPos = GetMethod((Il2CppClass*)g_TransformClass, "get_position", 0);
             if (!getPos) return {0,0,0};
 
-            Vector3 res;
+            Vector3 res = {0,0,0};
             void* ret = RuntimeInvoke(getPos, transform, nullptr, nullptr);
-            // IL2CPP struct return: usually pointer to result or unboxed
-            // Vector3 is a value type. il2cpp_runtime_invoke returns a boxed object for value types.
-            // We need to unbox it.
             if (ret) {
-                 res = *(Vector3*)((char*)ret + 0x10); // Unbox: skip header
+                 res = *(Vector3*)((char*)ret + 0x10); // Unbox
             }
             return res;
         }
 
         Vector3 GetPosition(void* component) {
             if (!component) return {0,0,0};
-            // Component.transform
+            
+            // If it IS a transform, use it directly
+            // But we don't have easy type check. Assume it's a Component.
+            
             if (!g_ComponentClass) g_ComponentClass = GetClass("UnityEngine", "Component");
             
             static Il2CppMethod* getTrans = nullptr;
@@ -274,22 +308,155 @@ namespace sdk {
             return GetTransformPosition(transform);
         }
 
-        Vector3 WorldToScreen(Vector3 worldPos) {
-            void* cam = GetPlayerCamera();
-            if (!cam) return {0,0,0};
+        Vector3 GetBonePosition(void* animator, int boneId) {
+            if (!animator) return {0,0,0};
+            static Il2CppClass* animatorClass = GetClass("UnityEngine", "Animator");
+            if (!animatorClass) return {0,0,0};
 
-            if (!g_CameraClass) g_CameraClass = GetClass("UnityEngine", "Camera");
-            static Il2CppMethod* w2s = nullptr;
-            if (!w2s) w2s = GetMethod((Il2CppClass*)g_CameraClass, "WorldToScreenPoint", 1);
-            if (!w2s) return {0,0,0};
+            static Il2CppMethod* getBoneTransform = GetMethod(animatorClass, "GetBoneTransform", 1);
+            if (!getBoneTransform) return {0,0,0};
 
-            void* args[1] = { &worldPos };
-            void* ret = RuntimeInvoke(w2s, cam, args, nullptr);
+            void* args[1] = { &boneId }; // HumanBodyBones enum is int-sized
+            void* transform = RuntimeInvoke(getBoneTransform, animator, args, nullptr);
             
-            if (ret) {
-                return *(Vector3*)((char*)ret + 0x10); // Unbox
-            }
-            return {0,0,0};
+            return GetTransformPosition(transform);
         }
+
+        // Direct RVA function pointers for matrix getters (bypasses RuntimeInvoke instability)
+        // These _Injected methods write directly to output parameter
+        typedef void(__fastcall* t_get_worldToCameraMatrix_Injected)(void* camera, Matrix4x4* ret);
+        typedef void(__fastcall* t_get_projectionMatrix_Injected)(void* camera, Matrix4x4* ret);
+        
+        static t_get_worldToCameraMatrix_Injected get_worldToCameraMatrix_Injected = nullptr;
+        static t_get_projectionMatrix_Injected get_projectionMatrix_Injected = nullptr;
+        
+        Matrix4x4 GetViewMatrix(void* camera) {
+            if (!camera) return {0};
+            
+            // Initialize RVA function pointer
+            if (!get_worldToCameraMatrix_Injected) {
+                get_worldToCameraMatrix_Injected = (t_get_worldToCameraMatrix_Injected)((uintptr_t)g_GameAssembly + 0x190E6C0);
+            }
+            
+            Matrix4x4 result = {0};
+            get_worldToCameraMatrix_Injected(camera, &result);
+            return result;
+        }
+
+        Matrix4x4 GetProjectionMatrix(void* camera) {
+            if (!camera) return {0};
+            
+            // Initialize RVA function pointer
+            if (!get_projectionMatrix_Injected) {
+                get_projectionMatrix_Injected = (t_get_projectionMatrix_Injected)((uintptr_t)g_GameAssembly + 0x190E370);
+            }
+            
+            Matrix4x4 result = {0};
+            get_projectionMatrix_Injected(camera, &result);
+            return result;
+        }
+
+        // Cached VP matrix - updated less frequently to reduce jitter
+        static Matrix4x4 g_cachedVP = {0};
+        static void* g_cachedCam = nullptr;
+        static DWORD g_lastMatrixUpdate = 0;
+        static bool g_vpValid = false;
+        
+        // Per-entity smoothed screen positions
+        struct SmoothedScreenPos {
+            Vector3 smoothedPos;
+            Vector3 lastWorldPos;
+            bool initialized;
+        };
+        static SmoothedScreenPos g_mitaSmoothed = {{0,0,0}, {0,0,0}, false};
+        
+        Vector3 WorldToScreen(Vector3 worldPos) {
+            void* cam = GetMainCamera();
+            if (!cam) cam = GetPlayerCamera();
+            if (!cam) {
+                if (g_mitaSmoothed.initialized) return g_mitaSmoothed.smoothedPos;
+                return {-10000.0f, -10000.0f, -1.0f};
+            }
+
+            // Update VP matrix only every 50ms (20 times per second) to reduce jitter
+            DWORD currentTick = GetTickCount();
+            if ((currentTick - g_lastMatrixUpdate) > 50 || cam != g_cachedCam || !g_vpValid) {
+                g_lastMatrixUpdate = currentTick;
+                g_cachedCam = cam;
+                
+                Matrix4x4 view = GetViewMatrix(cam);
+                Matrix4x4 proj = GetProjectionMatrix(cam);
+                
+                // Check if matrices are valid
+                bool viewValid = false;
+                bool projValid = false;
+                for (int i = 0; i < 16; i++) {
+                    if (view.m[i] != 0) viewValid = true;
+                    if (proj.m[i] != 0) projValid = true;
+                }
+                
+                if (viewValid && projValid) {
+                    g_cachedVP = Matrix4x4::Multiply(proj, view);
+                    g_vpValid = true;
+                }
+            }
+            
+            if (!g_vpValid) {
+                if (g_mitaSmoothed.initialized) return g_mitaSmoothed.smoothedPos;
+                return {-10000.0f, -10000.0f, -1.0f};
+            }
+            
+            // Transform using cached VP matrix
+            float x = g_cachedVP.m[0] * worldPos.x + g_cachedVP.m[4] * worldPos.y + g_cachedVP.m[8] * worldPos.z + g_cachedVP.m[12];
+            float y = g_cachedVP.m[1] * worldPos.x + g_cachedVP.m[5] * worldPos.y + g_cachedVP.m[9] * worldPos.z + g_cachedVP.m[13];
+            float z = g_cachedVP.m[2] * worldPos.x + g_cachedVP.m[6] * worldPos.y + g_cachedVP.m[10] * worldPos.z + g_cachedVP.m[14];
+            float w = g_cachedVP.m[3] * worldPos.x + g_cachedVP.m[7] * worldPos.y + g_cachedVP.m[11] * worldPos.z + g_cachedVP.m[15];
+
+            if (w < 0.001f) {
+                return {-10000.0f, -10000.0f, -1.0f};
+            }
+
+            // NDC to screen
+            float ndcX = x / w;
+            float ndcY = y / w;
+            ImGuiIO& io = ImGui::GetIO();
+            float screenX = (ndcX + 1.0f) * 0.5f * io.DisplaySize.x;
+            float screenY = (1.0f - ndcY) * 0.5f * io.DisplaySize.y;
+            
+            Vector3 rawResult = {screenX, screenY, w};
+            
+            // ALWAYS smooth when world position is stable (eliminates all camera jitter)
+            if (g_mitaSmoothed.initialized) {
+                float worldDelta = worldPos.Distance(g_mitaSmoothed.lastWorldPos);
+                
+                // Determine smoothing factor based on world movement
+                float smoothFactor;
+                if (worldDelta < 0.01f) {
+                    // Almost no world movement - heavy smoothing (keeps position very stable)
+                    smoothFactor = 0.95f;
+                } else if (worldDelta < 0.1f) {
+                    // Slight movement - moderate smoothing
+                    smoothFactor = 0.7f;
+                } else if (worldDelta < 0.5f) {
+                    // Normal movement - light smoothing
+                    smoothFactor = 0.3f;
+                } else {
+                    // Fast movement - minimal smoothing to stay responsive
+                    smoothFactor = 0.1f;
+                }
+                
+                rawResult.x = g_mitaSmoothed.smoothedPos.x * smoothFactor + screenX * (1.0f - smoothFactor);
+                rawResult.y = g_mitaSmoothed.smoothedPos.y * smoothFactor + screenY * (1.0f - smoothFactor);
+            }
+            
+            // Update smoothed cache
+            g_mitaSmoothed.smoothedPos = rawResult;
+            g_mitaSmoothed.lastWorldPos = worldPos;
+            g_mitaSmoothed.initialized = true;
+            
+            return rawResult;
+        }
+
+
     }
 }

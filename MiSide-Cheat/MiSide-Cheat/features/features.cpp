@@ -79,7 +79,7 @@ namespace features {
         
         if (config::g_config.misc.debug_view) {
             ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-            ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize(ImVec2(350, 500), ImGuiCond_FirstUseEver);
             ImGui::Begin("Debug View (MiSide-Zero)", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
             {
                 ImGui::TextColored(ImVec4(0.58f, 0.72f, 0.02f, 1.0f), "WallbangBros Game Analysis");
@@ -94,7 +94,7 @@ namespace features {
                 if (!sdk::Initialize()) {
                     ImGui::TextColored(ImVec4(1, 0, 0, 1), "SDK Initialize FAILED");
                 } else {
-                    ImGui::TextColored(ImVec4(0, 1, 0, 1), "WallbangBros Game Analysis");
+                    ImGui::TextColored(ImVec4(0, 1, 0, 1), "SDK Initialized");
                     
                     ImGui::TextWrapped("SDK Log: %s", sdk::GetLastLog());
                     ImGui::Separator();
@@ -103,45 +103,67 @@ namespace features {
                     void* pm = sdk::game::GetPlayerManager();
                     void* mitaMgr = sdk::game::GetMitaManager();
                     ImGui::TextColored(ImVec4(1, 1, 0, 1), "[Local Player]");
-                    ImGui::Text("Class: PlayerManager (TypeDef: 4211)");
-                    ImGui::Text("Instance: %p", pm);
-                    ImGui::Text("MitaManager: %p", mitaMgr);
+                    ImGui::Text("PlayerManager: %p", pm);
                     
                     if (pm) {
-                        sdk::Vector3 pos = sdk::game::GetPosition(pm); // Assuming PM is a component
-                        ImGui::BulletText("Position: %.2f, %.2f, %.2f", pos.x, pos.y, pos.z);
-                    } else {
-                        ImGui::BulletText("Position: N/A");
+                        sdk::Vector3 pos = sdk::game::GetPosition(pm); 
+                        ImGui::BulletText("Pos: %.2f, %.2f, %.2f", pos.x, pos.y, pos.z);
                     }
                     
                     ImGui::Spacing();
                     
-                    // 2. Camera Check
-                    void* cam = sdk::game::GetPlayerCamera();
-                    ImGui::TextColored(ImVec4(1, 1, 0, 1), "[Camera]");
-                    ImGui::Text("Main Camera: %p", cam);
+                    // 2. Camera Check (Dual Check)
+                    void* mainCam = sdk::game::GetMainCamera();
+                    void* playerCam = sdk::game::GetPlayerCamera();
                     
-                    if (cam) {
-                        sdk::Vector3 camPos = sdk::game::GetPosition(cam);
-                        ImGui::BulletText("Cam Pos: %.2f, %.2f, %.2f", camPos.x, camPos.y, camPos.z);
+                    ImGui::TextColored(ImVec4(1, 1, 0, 1), "[Camera System]");
+                    ImGui::Text("Camera.main: %p", mainCam);
+                    ImGui::Text("PlayerManager.playerCam: %p", playerCam);
+                    
+                    void* activeCam = mainCam ? mainCam : playerCam;
+                    
+                    if (mainCam) {
+                        sdk::Vector3 mPos = sdk::game::GetPosition(mainCam);
+                        ImGui::Text("MainCam Pos: %.2f, %.2f, %.2f", mPos.x, mPos.y, mPos.z);
+                    }
+                    if (playerCam) {
+                        sdk::Vector3 pPos = sdk::game::GetPosition(playerCam);
+                        ImGui::Text("PlayerCam Pos: %.2f, %.2f, %.2f", pPos.x, pPos.y, pPos.z);
+                    }
+                    
+                    if (activeCam) {
+                        sdk::Vector3 camPos = sdk::game::GetPosition(activeCam);
+                        ImGui::BulletText("Active Cam Pos: %.2f, %.2f, %.2f", camPos.x, camPos.y, camPos.z);
+                    } else {
+                        ImGui::TextColored(ImVec4(1, 0, 0, 1), "NO CAMERA FOUND");
                     }
                     
                     ImGui::Spacing();
 
+                    // 3. Mita Check
+                    ImGui::TextColored(ImVec4(1, 1, 0, 1), "[Mita]");
+                    ImGui::Text("MitaManager: %p", mitaMgr);
+                    void* mitaAnim = sdk::game::GetMitaAnimator();
+                    ImGui::Text("MitaAnimator: %p", mitaAnim);
+                    
+                    if (mitaMgr) {
+                        sdk::Vector3 mitaPos = sdk::game::GetPosition(mitaMgr);
+                        ImGui::BulletText("Pos: %.2f, %.2f, %.2f", mitaPos.x, mitaPos.y, mitaPos.z);
+                        
+                        // W2S Test on Mita
+                        sdk::Vector3 screenMita = sdk::game::WorldToScreen(mitaPos);
+                        ImGui::Text("Screen: %.1f, %.1f (Z: %.1f)", screenMita.x, screenMita.y, screenMita.z);
+                    }
+
                     // World To Screen Test
-                    if (pm && cam) {
+                    if (pm && activeCam) {
                          sdk::Vector3 worldPos = sdk::game::GetPosition(pm);
                          sdk::Vector3 screenPos = sdk::game::WorldToScreen(worldPos);
                          
-                         // Fix Y for Debug View too
-                         screenPos.y = ImGui::GetIO().DisplaySize.y - screenPos.y;
+                         // Fix Y for Debug View too - SDK now returns ImGui coords, no manual flip needed unless comparing to Unity raw
+                         // screenPos.y = ImGui::GetIO().DisplaySize.y - screenPos.y; // REMOVED
                          
-                         ImGui::Text("W2S Test: Screen(%.1f, %.1f)", screenPos.x, screenPos.y);
-                         
-                         // Draw a circle at player root
-                         if (screenPos.z > 0) {
-                              ImGui::GetForegroundDrawList()->AddCircle(ImVec2(screenPos.x, screenPos.y), 5.0f, ImColor(255, 0, 0));
-                         }
+                         ImGui::Text("Player W2S: %.1f, %.1f", screenPos.x, screenPos.y);
                     }
                 }
                 
@@ -159,23 +181,131 @@ namespace features {
         // ESP Rendering
         if (config::g_config.visuals.esp_enabled) {
              void* mita = sdk::game::GetMitaManager();
+             
              if (mita) {
-                 sdk::Vector3 mitaPos = sdk::game::GetPosition(mita);
-                 // Adjust position up slightly (head?)
-                 mitaPos.y += 1.5f; 
+                 void* anim = sdk::game::GetMitaAnimator();
                  
-                 sdk::Vector3 screenPos = sdk::game::WorldToScreen(mitaPos);
-                 
-                 if (screenPos.z > 0) {
-                      // Invert Y for ImGui
-                      screenPos.y = ImGui::GetIO().DisplaySize.y - screenPos.y;
-
-                      ImGui::GetForegroundDrawList()->AddText(ImVec2(screenPos.x, screenPos.y), ImColor(255, 0, 0, 255), "Mita");
-                      ImGui::GetForegroundDrawList()->AddCircle(ImVec2(screenPos.x, screenPos.y + 10), 5.0f, ImColor(255, 0, 0, 255));
+                 if (anim) {
+                     // HumanBodyBones enum values:
+                     // 0 = Hips, 1 = LeftUpperLeg, 2 = RightUpperLeg, 5 = LeftFoot, 6 = RightFoot
+                     // 7 = Spine, 10 = Head, 11 = LeftShoulder, 12 = RightShoulder
+                     // 13 = LeftUpperArm, 14 = RightUpperArm, 17 = LeftHand, 18 = RightHand
+                     
+                     // Get key bone positions for bounding box
+                     sdk::Vector3 headWorld = sdk::game::GetBonePosition(anim, 10);      // Head
+                     sdk::Vector3 hipsWorld = sdk::game::GetBonePosition(anim, 0);       // Hips (center mass)
+                     sdk::Vector3 leftFootWorld = sdk::game::GetBonePosition(anim, 5);   // Left Foot
+                     sdk::Vector3 rightFootWorld = sdk::game::GetBonePosition(anim, 6);  // Right Foot
+                     sdk::Vector3 leftHandWorld = sdk::game::GetBonePosition(anim, 17);  // Left Hand
+                     sdk::Vector3 rightHandWorld = sdk::game::GetBonePosition(anim, 18); // Right Hand
+                     sdk::Vector3 leftShoulderWorld = sdk::game::GetBonePosition(anim, 11);  // Left Shoulder
+                     sdk::Vector3 rightShoulderWorld = sdk::game::GetBonePosition(anim, 12); // Right Shoulder
+                     
+                     // Convert to screen space
+                     sdk::Vector3 headScreen = sdk::game::WorldToScreen(headWorld);
+                     sdk::Vector3 hipsScreen = sdk::game::WorldToScreen(hipsWorld);
+                     sdk::Vector3 leftFootScreen = sdk::game::WorldToScreen(leftFootWorld);
+                     sdk::Vector3 rightFootScreen = sdk::game::WorldToScreen(rightFootWorld);
+                     sdk::Vector3 leftHandScreen = sdk::game::WorldToScreen(leftHandWorld);
+                     sdk::Vector3 rightHandScreen = sdk::game::WorldToScreen(rightHandWorld);
+                     sdk::Vector3 leftShoulderScreen = sdk::game::WorldToScreen(leftShoulderWorld);
+                     sdk::Vector3 rightShoulderScreen = sdk::game::WorldToScreen(rightShoulderWorld);
+                     
+                     // Check if at least head and feet are visible (basic visibility check)
+                     if (headScreen.z > 0 && (leftFootScreen.z > 0 || rightFootScreen.z > 0)) {
+                         
+                         // Calculate bounding box from all visible bones
+                         float minX = headScreen.x, maxX = headScreen.x;
+                         float minY = headScreen.y, maxY = headScreen.y;
+                         
+                         // Helper lambda to expand bounds
+                         auto expandBounds = [&](const sdk::Vector3& p) {
+                             if (p.z > 0) { // Only if visible
+                                 if (p.x < minX) minX = p.x;
+                                 if (p.x > maxX) maxX = p.x;
+                                 if (p.y < minY) minY = p.y;
+                                 if (p.y > maxY) maxY = p.y;
+                             }
+                         };
+                         
+                         expandBounds(hipsScreen);
+                         expandBounds(leftFootScreen);
+                         expandBounds(rightFootScreen);
+                         expandBounds(leftHandScreen);
+                         expandBounds(rightHandScreen);
+                         expandBounds(leftShoulderScreen);
+                         expandBounds(rightShoulderScreen);
+                         
+                         // Add padding above head for hair/accessories
+                         float height = maxY - minY;
+                         minY -= height * 0.1f; // 10% padding on top
+                         
+                         // Add horizontal padding for arms/body width
+                         float width = maxX - minX;
+                         float paddingX = width * 0.15f;
+                         minX -= paddingX;
+                         maxX += paddingX;
+                         
+                         // Minimum size check
+                         if ((maxY - minY) < 10.0f) {
+                             maxY = minY + 10.0f;
+                         }
+                         if ((maxX - minX) < 10.0f) {
+                             float center = (minX + maxX) / 2.0f;
+                             minX = center - 5.0f;
+                             maxX = center + 5.0f;
+                         }
+                         
+                         // Draw Box
+                         ImGui::GetForegroundDrawList()->AddRect(
+                             ImVec2(minX, minY), 
+                             ImVec2(maxX, maxY), 
+                             ImColor(255, 0, 0, 255), 
+                             0.0f, 
+                             0, 
+                             2.0f
+                         );
+                         
+                         // Draw Name centered above box
+                         float textWidth = ImGui::CalcTextSize("Mita").x;
+                         ImGui::GetForegroundDrawList()->AddText(
+                             ImVec2(minX + (maxX - minX) / 2.0f - textWidth / 2.0f, minY - 18), 
+                             ImColor(255, 255, 255, 255), 
+                             "Mita"
+                         );
+                     }
+                 } else {
+                     // Fallback: No animator, use simple position-based ESP
+                     sdk::Vector3 rootPos = sdk::game::GetPosition(mita);
+                     sdk::Vector3 headPos = rootPos;
+                     headPos.y += 1.6f; // Estimate height
+                     
+                     sdk::Vector3 screenRoot = sdk::game::WorldToScreen(rootPos);
+                     sdk::Vector3 screenHead = sdk::game::WorldToScreen(headPos);
+                     
+                     if (screenRoot.z > 0 && screenHead.z > 0) {
+                         float height = screenRoot.y - screenHead.y;
+                         if (height < 0) height = -height;
+                         if (height < 5.0f) height = 5.0f;
+                         
+                         float width = height * 0.5f;
+                         float x = screenHead.x - (width / 2);
+                         float y = screenHead.y;
+                         
+                         ImGui::GetForegroundDrawList()->AddRect(
+                             ImVec2(x, y), 
+                             ImVec2(x + width, y + height), 
+                             ImColor(255, 0, 0, 255), 
+                             0.0f, 0, 2.0f
+                         );
+                         
+                         ImGui::GetForegroundDrawList()->AddText(
+                             ImVec2(x + (width/2) - 10, y - 15), 
+                             ImColor(255, 255, 255, 255), 
+                             "Mita"
+                         );
+                     }
                  }
-             } else {
-                 // Debug: MitaManager not found
-                 // ImGui::GetForegroundDrawList()->AddText(ImVec2(100, 100), ImColor(255, 0, 0, 255), "MitaManager NOT Found");
              }
         }
     }
