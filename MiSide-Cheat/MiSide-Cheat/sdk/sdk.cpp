@@ -217,9 +217,16 @@ namespace sdk {
         }
 
         void* GetMitaManager() {
+             // Don't cache permanently - Mita can be destroyed/recreated
+             // Use a simple timer instead
              static void* mitaCached = nullptr;
-             if (!mitaCached) {
+             static int refreshTimer = 0;
+             
+             if (refreshTimer <= 0 || !mitaCached) {
                  mitaCached = FindObjectOfType("MitaManager");
+                 refreshTimer = 60; // Refresh every ~1 second (assuming 60fps)
+             } else {
+                 refreshTimer--;
              }
              return mitaCached;
         }
@@ -229,8 +236,10 @@ namespace sdk {
             if (!mita) return nullptr;
             static Il2CppClass* mitaClass = nullptr;
             if (!mitaClass) mitaClass = GetClass("", "MitaManager");
+            if (!mitaClass) return nullptr;
             static Il2CppField* animField = nullptr;
             if (!animField) animField = GetField(mitaClass, "animManager");
+            if (!animField) return nullptr;
             void* animator = nullptr;
             il2cpp_field_get_value(mita, animField, &animator);
             return animator;
@@ -239,8 +248,12 @@ namespace sdk {
         int GetMitaState() {
             void* mita = GetMitaManager();
             if (!mita) return 0;
-            static Il2CppClass* mitaClass = GetClass("", "MitaManager");
-            static Il2CppField* stateField = GetField(mitaClass, "state");
+            static Il2CppClass* mitaClass = nullptr;
+            if (!mitaClass) mitaClass = GetClass("", "MitaManager");
+            if (!mitaClass) return 0;
+            static Il2CppField* stateField = nullptr;
+            if (!stateField) stateField = GetField(mitaClass, "state");
+            if (!stateField) return 0;
             int state = 0;
             il2cpp_field_get_value(mita, stateField, &state);
             return state;
@@ -249,19 +262,32 @@ namespace sdk {
         int GetMitaMovementState() {
             void* mita = GetMitaManager();
             if (!mita) return 0;
-            static Il2CppClass* mitaClass = GetClass("", "MitaManager");
-            static Il2CppField* moveField = GetField(mitaClass, "move");
+            static Il2CppClass* mitaClass = nullptr;
+            if (!mitaClass) mitaClass = GetClass("", "MitaManager");
+            if (!mitaClass) return 0;
+            static Il2CppField* moveField = nullptr;
+            if (!moveField) moveField = GetField(mitaClass, "move");
+            if (!moveField) return 0;
             
             void* mitaMove = nullptr;
             il2cpp_field_get_value(mita, moveField, &mitaMove);
             if (!mitaMove) return 0;
 
-            static Il2CppClass* moveClass = GetClass("", "MitaMove");
-            static Il2CppField* movStateField = GetField(moveClass, "movementState");
+            static Il2CppClass* moveClass = nullptr;
+            if (!moveClass) moveClass = GetClass("", "MitaMove");
+            if (!moveClass) return 0;
+            static Il2CppField* movStateField = nullptr;
+            if (!movStateField) movStateField = GetField(moveClass, "movementState");
+            if (!movStateField) return 0;
             
             int state = 0;
             il2cpp_field_get_value(mitaMove, movStateField, &state);
             return state;
+        }
+
+        float GetSpeed(void* movement) {
+            if (!movement) return 0.0f;
+            return *(float*)((uintptr_t)movement + 0x1C);
         }
 
         void SetSpeed(void* movement, float speed) {
@@ -347,11 +373,17 @@ namespace sdk {
 
         Vector3 GetBonePosition(void* animator, int boneId) {
             if (!animator) return {0,0,0};
-            static Il2CppClass* animatorClass = GetClass("UnityEngine", "Animator");
-            static Il2CppMethod* getBoneTransform = GetMethod(animatorClass, "GetBoneTransform", 1);
+            static Il2CppClass* animatorClass = nullptr;
+            if (!animatorClass) animatorClass = GetClass("UnityEngine", "Animator");
+            if (!animatorClass) return {0,0,0};
+            
+            static Il2CppMethod* getBoneTransform = nullptr;
+            if (!getBoneTransform) getBoneTransform = GetMethod(animatorClass, "GetBoneTransform", 1);
+            if (!getBoneTransform) return {0,0,0};
 
             void* args[1] = { &boneId };
             void* transform = RuntimeInvoke(getBoneTransform, animator, args, nullptr);
+            if (!transform) return {0,0,0};
             return GetTransformPosition(transform);
         }
 
@@ -476,6 +508,7 @@ namespace sdk {
             if (!getTrans) getTrans = GetMethod((Il2CppClass*)g_ComponentClass, "get_transform", 0);
             
             transform = RuntimeInvoke(getTrans, gameObjectOrComponent, nullptr, nullptr);
+            if (!transform) return results; // Add verification
             
             RecursiveFindRenderers(transform, results);
             return results;

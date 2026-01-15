@@ -33,13 +33,25 @@ namespace features {
 
             if (!g_ChamsMaterial) return;
 
-            // Apply to all renderers on Mita
-            std::vector<void*> renderers = sdk::game::GetRenderers(mita);
-            
-            for (void* renderer : renderers) {
-                // Here we simply overwrite the material. 
-                // In a perfect world we would store the original and restore it when disabled.
-                // But for valid "Chams" in this context, we overwrite.
+            // Simple validity check for material (if game unloaded it?)
+            // We can't easily check if C# object is disposed from raw pointer without more SDK work.
+            // But we can ensure we don't apply if we are in a bad state.
+
+            static std::vector<void*> cached_renderers;
+            static int timer = 0;
+
+            // Update cache every 100 ticks (approx 1-2 seconds) to avoid spamming recursion
+            if (timer <= 0) {
+                 cached_renderers = sdk::game::GetRenderers(mita);
+                 timer = 100;
+            } else {
+                timer--;
+            }
+
+            if (!g_ChamsMaterial) return;
+
+            for (void* renderer : cached_renderers) {
+                if (!renderer) continue;
                 sdk::game::SetMaterial(renderer, g_ChamsMaterial);
             }
         }

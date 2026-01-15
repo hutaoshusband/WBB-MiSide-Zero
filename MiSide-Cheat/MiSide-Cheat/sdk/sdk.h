@@ -128,6 +128,7 @@ namespace sdk {
         Vector3 GetTransformPosition(void* transform);
         Vector3 GetPosition(void* gameObjectOrComponent); 
         Vector3 GetBonePosition(void* animator, int boneId);
+        float GetSpeed(void* movement);
         void SetSpeed(void* movement, float speed);
 
         // Matrix & W2S

@@ -63,7 +63,11 @@ namespace features {
     void Initialize() {
         // Initialize all feature systems here
         // For now, nothing special needed
-        sdk::Initialize();
+        // Initialize SDK if not already, to ensure features work without Debug View
+        static bool init = false;
+        if (!init) {
+            init = sdk::Initialize();
+        }
     }
     
     void Shutdown() {
@@ -72,6 +76,10 @@ namespace features {
     
     void OnTick() {
         // Called every frame - update all enabled features
+        // Ensure SDK is initialized even if Initialize() wasn't called (e.g. reload)
+        static bool sdk_ready = false;
+        if (!sdk_ready) sdk_ready = sdk::Initialize();
+        if (!sdk_ready) return;
         
         static bool lastNoClip = false;
         
@@ -95,12 +103,31 @@ namespace features {
         }
 
         // SpeedHack logic
+
+        static float saved_speed = -1.0f;
         if (move) {
             if (config::g_config.misc.speed_hack.IsActive()) {
-                sdk::game::SetSpeed(move, 6.0f * config::g_config.misc.speed_multiplier);
+                // If we haven't saved the speed yet, save it
+                if (saved_speed < 0.0f) {
+                    float current = sdk::game::GetSpeed(move);
+                    // Only save if it looks like a normal speed (sanity check)
+                    if (current > 0.1f && current < 20.0f) {
+                         saved_speed = current;
+                    } else {
+                         // If reading failed or absurd, default to 3.0f (guess)
+                         saved_speed = 3.0f;
+                    }
+                }
+                
+                // Apply speed hack
+                float target = saved_speed * config::g_config.misc.speed_multiplier;
+                sdk::game::SetSpeed(move, target);
             } else {
-                // Return to normal speed when not active
-                sdk::game::SetSpeed(move, 6.0f);
+                // If not active, but we have a saved speed, restore it
+                if (saved_speed > 0.0f) {
+                    sdk::game::SetSpeed(move, saved_speed);
+                    saved_speed = -1.0f; // Reset so we can capture it again next time
+                }
             }
         }
 
