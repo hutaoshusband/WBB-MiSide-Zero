@@ -9,15 +9,12 @@ namespace features {
         
         // Cache our custom material
         static void* g_ChamsMaterial = nullptr;
+        static void* cached_renderers[256] = { nullptr }; // Use C-style array instead of vector
+        static int cached_renderer_count = 0;
+        static int timer = 0;
         
-        void OnTick() {
-            // Check config directly or local enabled? features.cpp maps config to enabled boolean pointer usually.
-            // But here we might just use the global config.
-            if (!config::g_config.visuals.chams.IsActive()) return;
-
-            void* mita = sdk::game::GetMitaManager();
-            if (!mita) return;
-
+        // Inner function that does the actual work (no C++ objects with destructors)
+        static void OnTickInternal(void* mita) {
             // Initialize Material once
             if (!g_ChamsMaterial) {
                 // Try standard Unity shaders
@@ -26,34 +23,49 @@ namespace features {
                 
                 if (shader) {
                     g_ChamsMaterial = sdk::game::CreateMaterial(shader);
-                    // Set Red Color
-                    sdk::game::SetMaterialColor(g_ChamsMaterial, 1.0f, 0.0f, 1.0f, 1.0f); // Magenta/Pink for high visibility
+                    // Set Magenta/Pink for high visibility
+                    sdk::game::SetMaterialColor(g_ChamsMaterial, 1.0f, 0.0f, 1.0f, 1.0f);
                 }
             }
 
             if (!g_ChamsMaterial) return;
 
-            // Simple validity check for material (if game unloaded it?)
-            // We can't easily check if C# object is disposed from raw pointer without more SDK work.
-            // But we can ensure we don't apply if we are in a bad state.
-
-            static std::vector<void*> cached_renderers;
-            static int timer = 0;
-
             // Update cache every 100 ticks (approx 1-2 seconds) to avoid spamming recursion
             if (timer <= 0) {
-                 cached_renderers = sdk::game::GetRenderers(mita);
-                 timer = 100;
+                std::vector<void*> renderers = sdk::game::GetRenderers(mita);
+                cached_renderer_count = 0;
+                for (size_t i = 0; i < renderers.size() && i < 256; i++) {
+                    cached_renderers[cached_renderer_count++] = renderers[i];
+                }
+                timer = 100;
             } else {
                 timer--;
             }
 
-            if (!g_ChamsMaterial) return;
-
-            for (void* renderer : cached_renderers) {
-                if (!renderer) continue;
-                sdk::game::SetMaterial(renderer, g_ChamsMaterial);
+            for (int i = 0; i < cached_renderer_count; i++) {
+                if (!cached_renderers[i]) continue;
+                sdk::game::SetMaterial(cached_renderers[i], g_ChamsMaterial);
+            }
+        }
+        
+        void OnTick() {
+            if (!config::g_config.visuals.chams.IsActive()) return;
+            if (!sdk::IsReady()) return;
+            
+            void* mita = sdk::game::GetMitaManager();
+            if (!mita) return;
+            
+            // SEH protection wrapper (no C++ objects in scope)
+            __try {
+                OnTickInternal(mita);
+            }
+            __except(EXCEPTION_EXECUTE_HANDLER) {
+                // Reset on crash
+                g_ChamsMaterial = nullptr;
+                cached_renderer_count = 0;
             }
         }
     }
 }
+
+

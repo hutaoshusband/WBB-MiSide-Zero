@@ -33,6 +33,7 @@ namespace sdk {
     typedef Il2CppField* (*t_il2cpp_class_get_field_from_name)(Il2CppClass*, const char*);
     typedef void (*t_il2cpp_field_static_get_value)(Il2CppField*, void*);
     typedef void (*t_il2cpp_field_get_value)(void*, Il2CppField*, void*);
+    typedef void (*t_il2cpp_field_set_value)(void*, Il2CppField*, void*);
     typedef void* (*t_il2cpp_runtime_invoke)(Il2CppMethod*, void*, void**, void**);
     typedef const char* (*t_il2cpp_image_get_name)(Il2CppImage*);
     typedef Il2CppType* (*t_il2cpp_class_get_type)(Il2CppClass*);
@@ -47,6 +48,7 @@ namespace sdk {
     static t_il2cpp_class_get_field_from_name il2cpp_class_get_field_from_name = nullptr;
     static t_il2cpp_field_static_get_value il2cpp_field_static_get_value = nullptr;
     static t_il2cpp_field_get_value il2cpp_field_get_value = nullptr;
+    static t_il2cpp_field_set_value il2cpp_field_set_value = nullptr;
     static t_il2cpp_runtime_invoke il2cpp_runtime_invoke = nullptr;
     static t_il2cpp_image_get_name il2cpp_image_get_name = nullptr;
     static t_il2cpp_class_get_type il2cpp_class_get_type = nullptr;
@@ -54,6 +56,23 @@ namespace sdk {
 
     HMODULE g_GameAssembly = nullptr;
     bool g_Initialized = false;
+
+    // Basic pointer validation
+    bool IsValidPtr(void* ptr) {
+        if (!ptr || (uintptr_t)ptr < 0x10000 || (uintptr_t)ptr > 0x7FFFFFFFFFFF) return false;
+        
+        MEMORY_BASIC_INFORMATION mbi;
+        if (VirtualQuery(ptr, &mbi, sizeof(mbi))) {
+            if (mbi.State == MEM_COMMIT && !(mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD))) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    // Thread-local flag to track if this thread is attached to IL2CPP runtime
+    static thread_local bool t_ThreadAttached = false;
+    static thread_local Il2CppThread* t_AttachedThread = nullptr;
 
     bool Initialize() {
         if (g_Initialized) return true;
@@ -75,16 +94,48 @@ namespace sdk {
         LOAD_PROC(il2cpp_class_get_field_from_name);
         LOAD_PROC(il2cpp_field_static_get_value);
         LOAD_PROC(il2cpp_field_get_value);
+        LOAD_PROC(il2cpp_field_set_value);
         LOAD_PROC(il2cpp_runtime_invoke);
         LOAD_PROC(il2cpp_image_get_name);
         LOAD_PROC(il2cpp_class_get_type);
         LOAD_PROC(il2cpp_type_get_object);
 
-        // Attach thread
-        il2cpp_thread_attach(il2cpp_domain_get());
+        // Attach the initializing thread
+        Il2CppDomain* domain = il2cpp_domain_get();
+        if (domain) {
+            t_AttachedThread = il2cpp_thread_attach(domain);
+            t_ThreadAttached = (t_AttachedThread != nullptr);
+        }
 
         g_Initialized = true;
         return true;
+    }
+    
+    bool IsReady() {
+        return g_Initialized && g_GameAssembly != nullptr;
+    }
+    
+    bool AttachCurrentThread() {
+        // Already attached on this thread
+        if (t_ThreadAttached && t_AttachedThread) {
+            return true;
+        }
+        
+        // SDK not initialized
+        if (!g_Initialized || !il2cpp_thread_attach || !il2cpp_domain_get) {
+            return false;
+        }
+        
+        // Attach this thread to the IL2CPP runtime
+        Il2CppDomain* domain = il2cpp_domain_get();
+        if (!domain) {
+            return false;
+        }
+        
+        t_AttachedThread = il2cpp_thread_attach(domain);
+        t_ThreadAttached = (t_AttachedThread != nullptr);
+        
+        return t_ThreadAttached;
     }
 
     Il2CppDomain* GetDomain() {
@@ -180,13 +231,27 @@ namespace sdk {
             return cam;
         }
 
+        static void GetFieldValueInternal(void* instance, Il2CppField* field, void** out) {
+            __try {
+                il2cpp_field_get_value(instance, field, out);
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER) {
+                *out = nullptr;
+            }
+        }
+
         void* GetPlayerMovement() {
             void* pm = GetPlayerManager();
-            if (!pm) return nullptr;
-            static Il2CppField* moveField = GetField((Il2CppClass*)GetClass("", "PlayerManager"), "move");
+            if (!pm || !IsValidPtr(pm)) return nullptr;
+            
+            if (!g_PlayerManagerClass) g_PlayerManagerClass = GetClass("", "PlayerManager");
+            if (!g_PlayerManagerClass) return nullptr;
+
+            static Il2CppField* moveField = GetField((Il2CppClass*)g_PlayerManagerClass, "move");
             if (!moveField) return nullptr;
+            
             void* move = nullptr;
-            il2cpp_field_get_value(pm, moveField, &move);
+            GetFieldValueInternal(pm, moveField, &move);
             return move;
         }
 
@@ -286,35 +351,56 @@ namespace sdk {
         }
 
         float GetSpeed(void* movement) {
-            if (!movement) return 0.0f;
-            return *(float*)((uintptr_t)movement + 0x1C);
+            if (!IsValidPtr(movement)) return 0.0f;
+            __try {
+                // kiriMoveBasic: walkSpeed at 0x1C.
+                return *(float*)((uintptr_t)movement + 0x1C);
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER) {
+                return 0.0f;
+            }
         }
 
         void SetSpeed(void* movement, float speed) {
-            if (!movement) return;
-            // kiriMoveBasic: walkSpeed at 0x1C.
-            *(float*)((uintptr_t)movement + 0x1C) = speed;
-            // Also ensure canMove is on (0x18)
-            *(bool*)((uintptr_t)movement + 0x18) = true;
+            if (!IsValidPtr(movement)) return;
+            __try {
+                // kiriMoveBasic: walkSpeed at 0x1C.
+                *(float*)((uintptr_t)movement + 0x1C) = speed;
+                // Also ensure canMove is on (0x18)
+                *(bool*)((uintptr_t)movement + 0x18) = true;
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER) {
+                // Log or ignore
+            }
         }
 
         void* GetPlayerRigidbody() {
             void* pm = GetPlayerManager();
-            if (!pm) return nullptr;
-            static Il2CppClass* pmClass = GetClass("", "PlayerManager");
-            static Il2CppField* rbField = GetField(pmClass, "rb");
+            if (!pm || !IsValidPtr(pm)) return nullptr;
+            
+            if (!g_PlayerManagerClass) g_PlayerManagerClass = GetClass("", "PlayerManager");
+            if (!g_PlayerManagerClass) return nullptr;
+
+            static Il2CppField* rbField = GetField((Il2CppClass*)g_PlayerManagerClass, "rb");
+            if (!rbField) return nullptr;
+
             void* rb = nullptr;
-            il2cpp_field_get_value(pm, rbField, &rb);
+            GetFieldValueInternal(pm, rbField, &rb);
             return rb;
         }
 
         void* GetPlayerCollider() {
             void* pm = GetPlayerManager();
-            if (!pm) return nullptr;
-            static Il2CppClass* pmClass = GetClass("", "PlayerManager");
-            static Il2CppField* colField = GetField(pmClass, "col");
+            if (!pm || !IsValidPtr(pm)) return nullptr;
+            
+            if (!g_PlayerManagerClass) g_PlayerManagerClass = GetClass("", "PlayerManager");
+            if (!g_PlayerManagerClass) return nullptr;
+
+            static Il2CppField* colField = GetField((Il2CppClass*)g_PlayerManagerClass, "col");
+            if (!colField) return nullptr;
+
             void* col = nullptr;
-            il2cpp_field_get_value(pm, colField, &col);
+            GetFieldValueInternal(pm, colField, &col);
             return col;
         }
 

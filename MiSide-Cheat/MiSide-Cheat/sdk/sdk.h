@@ -86,6 +86,14 @@ namespace sdk {
     // API Wrappers
     // ============================================================
     bool Initialize();
+    bool IsValidPtr(void* ptr);
+    
+    // Return true if SDK is ready to use
+    bool IsReady();
+    
+    // Attach current thread to IL2CPP runtime (MUST be called before any IL2CPP calls from non-Unity threads!)
+    // Returns true if already attached or attachment succeeded
+    bool AttachCurrentThread();
     
     Il2CppDomain* GetDomain();
     Il2CppThread* ThreadAttach(Il2CppDomain* domain);
