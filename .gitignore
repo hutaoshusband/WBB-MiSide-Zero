@@ -1,0 +1,41 @@
+## Visual Studio
+.vs/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.pdb
+*.obj
+*.log
+*.tlog
+*.lastbuildstate
+*.ilk
+*.exp
+*.lib
+*.exe
+*.dll
+*.iobj
+*.ipdb
+*.sdf
+*.opensdf
+*.vsp
+*.vspx
+*.sap
+ipch/
+*.aps
+*.ncb
+*.cache
+
+## Generated files
+Dump/
+*.csv
+*.xml
+*.json
+
+## Other
+.DS_Store
+Thumbs.db
