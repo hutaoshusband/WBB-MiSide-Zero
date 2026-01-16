@@ -21,6 +21,12 @@ namespace features {
         static bool g_WasEnabledCollectibles = false;
         static void* g_CollectiblesMaterial = nullptr;
 
+        // World Chams State
+        static std::map<void*, void*> g_OriginalMaterialsWorld;
+        static bool g_WasEnabledWorld = false;
+        static void* g_WorldMaterial = nullptr;
+        static int g_WorldRefreshTimer = 0;
+
         // Helper to create a wallhack material
         static void* CreateWallhackMaterial() {
             void* shader = sdk::game::FindShader("GUI/Text Shader");
@@ -29,6 +35,29 @@ namespace features {
             
             void* mat = sdk::game::CreateMaterial(shader);
             return mat;
+        }
+
+        // Helper to get layer
+        static int GetLayer(void* component) {
+            if (!component) return 0;
+            static sdk::Il2CppClass* compClass = nullptr;
+            if (!compClass) compClass = sdk::GetClass("UnityEngine", "Component");
+            
+            static sdk::Il2CppMethod* getGO = nullptr;
+            if (!getGO) getGO = sdk::GetMethod(compClass, "get_gameObject", 0);
+            
+            void* go = sdk::RuntimeInvoke(getGO, component, nullptr, nullptr);
+            if (!go) return 0;
+            
+            static sdk::Il2CppClass* goClass = nullptr;
+            if (!goClass) goClass = sdk::GetClass("UnityEngine", "GameObject");
+            
+            static sdk::Il2CppMethod* getLayer = nullptr;
+            if (!getLayer) getLayer = sdk::GetMethod(goClass, "get_layer", 0);
+            
+            void* layerObj = sdk::RuntimeInvoke(getLayer, go, nullptr, nullptr);
+            if (layerObj) return *(int*)((char*)layerObj + 0x10);
+            return 0;
         }
         
         void OnTick() {
@@ -150,6 +179,65 @@ namespace features {
                          // Re-apply to known
                          for (auto& pair : g_OriginalMaterialsCollectibles) {
                             if (sdk::IsValidPtr(pair.first)) sdk::game::SetMaterial(pair.first, g_CollectiblesMaterial);
+                        }
+                    }
+                }
+            }
+
+            // ===================================
+            // World Chams Logic
+            // ===================================
+            bool worldChamsEnabled = config::g_config.visuals.world_chams;
+
+            if (!worldChamsEnabled) {
+                if (g_WasEnabledWorld) {
+                    for (auto& pair : g_OriginalMaterialsWorld) {
+                        if (sdk::IsValidPtr(pair.first) && sdk::IsValidPtr(pair.second)) {
+                            sdk::game::SetMaterial(pair.first, pair.second);
+                        }
+                    }
+                    g_OriginalMaterialsWorld.clear();
+                    g_WasEnabledWorld = false;
+                }
+            } else {
+                g_WasEnabledWorld = true;
+
+                if (!g_WorldMaterial) {
+                     void* shader = sdk::game::FindShader("GUI/Text Shader"); // Flat
+                     if (shader) g_WorldMaterial = sdk::game::CreateMaterial(shader);
+                }
+
+                if (g_WorldMaterial) {
+                    float* col = config::g_config.visuals.world_chams_color;
+                    sdk::game::SetMaterialColor(g_WorldMaterial, col[0], col[1], col[2], col[3]);
+
+                    if (g_OriginalMaterialsWorld.empty() || g_WorldRefreshTimer <= 0) {
+                        g_WorldRefreshTimer = 300; // Rescan every 5s
+
+                        std::vector<void*> renderers = sdk::game::FindObjectsOfTypeAll("MeshRenderer");
+                        
+                        for (void* r : renderers) {
+                            if (!r) continue;
+                            
+                            // Exclude UI (Layer 5)
+                            int layer = GetLayer(r);
+                            if (layer == 5) continue;
+                            
+                            // Exclude already handled (Mita/Collectibles)
+                            if (g_OriginalMaterials.find(r) != g_OriginalMaterials.end()) continue;
+                            if (g_OriginalMaterialsCollectibles.find(r) != g_OriginalMaterialsCollectibles.end()) continue;
+
+                            if (g_OriginalMaterialsWorld.find(r) == g_OriginalMaterialsWorld.end()) {
+                                void* orig = sdk::game::GetMaterial(r);
+                                if (orig) g_OriginalMaterialsWorld[r] = orig;
+                            }
+                            sdk::game::SetMaterial(r, g_WorldMaterial);
+                        }
+                    } else {
+                        g_WorldRefreshTimer--;
+                        // Re-apply to known
+                        for (auto& pair : g_OriginalMaterialsWorld) {
+                            if (sdk::IsValidPtr(pair.first)) sdk::game::SetMaterial(pair.first, g_WorldMaterial);
                         }
                     }
                 }

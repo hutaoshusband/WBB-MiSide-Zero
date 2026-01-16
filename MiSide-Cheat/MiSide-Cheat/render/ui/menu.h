@@ -435,6 +435,18 @@ namespace ui {
                 if (config::g_config.visuals.path_prediction) {
                      ImGui::TextDisabled("Predicts movement of platforms and projectiles.");
                 }
+
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+
+                Checkbox("World Chams", &config::g_config.visuals.world_chams);
+                if (config::g_config.visuals.world_chams) {
+                     ImGui::Text("Color");
+                     ColorPicker("##worldchamscol", config::g_config.visuals.world_chams_color);
+                     ImGui::TextDisabled("Applies chams to all static world objects.");
+                     ImGui::TextDisabled("Warning: May cause lag on initial load.");
+                }
             }
             EndChild();
         }

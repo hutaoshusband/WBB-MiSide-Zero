@@ -67,6 +67,10 @@ namespace config {
         // Collectibles Chams
         bool chams_collectibles = false;
         float chams_collectibles_color[4] = { 0.0f, 1.0f, 1.0f, 1.0f }; // Cyan default
+        
+        // World Chams
+        bool world_chams = false;
+        float world_chams_color[4] = { 0.5f, 0.5f, 0.5f, 1.0f }; // Grey default
     };
     
     // ============================================================
