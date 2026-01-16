@@ -150,9 +150,8 @@ namespace render {
         
         // Render menu if open
         // Render menu if open
-        if (menu::g_bOpen) {
-            menu::RenderMenu();
-        }
+        // Render menu (handles its own visibility and animation)
+        menu::RenderMenu();
 
         // Render features (ESP, Debug View, etc)
         features::OnRender();

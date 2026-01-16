@@ -42,6 +42,15 @@ namespace config {
         std::ofstream file(path);
         if (!file.is_open()) return false;
 
+        // Menu
+        file << "[Menu]\n";
+        file << "toggle_key=" << g_config.menu.toggle_key << "\n";
+        file << "animation_speed=" << g_config.menu.animation_speed << "\n";
+        file << "dpi_scale_index=" << g_config.menu.dpi_scale_index << "\n";
+        file << "accent_color=" << g_config.menu.accent_color[0] << "," << g_config.menu.accent_color[1] << "," << g_config.menu.accent_color[2] << "," << g_config.menu.accent_color[3] << "\n";
+        file << "show_watermark=" << g_config.menu.show_watermark << "\n";
+        file << "show_module_list=" << g_config.menu.show_module_list << "\n";
+
         // Visuals
         file << "[Visuals]\n";
         file << "esp.enabled=" << g_config.visuals.esp.enabled << "\n";
@@ -90,8 +99,29 @@ namespace config {
             if (key.empty()) continue;
 
             try {
+                // Menu
+                if (key == "toggle_key") g_config.menu.toggle_key = std::stoi(val);
+                else if (key == "animation_speed") g_config.menu.animation_speed = std::stof(val);
+                else if (key == "dpi_scale_index") g_config.menu.dpi_scale_index = std::stoi(val);
+                else if (key == "show_watermark") g_config.menu.show_watermark = std::stoi(val);
+                else if (key == "show_module_list") g_config.menu.show_module_list = std::stoi(val);
+                else if (key == "accent_color") {
+                    size_t pos = val.find(',');
+                    if (pos != std::string::npos) {
+                        g_config.menu.accent_color[0] = std::stof(val.substr(0, pos));
+                        size_t pos2 = val.find(',', pos + 1);
+                        if (pos2 != std::string::npos) {
+                            g_config.menu.accent_color[1] = std::stof(val.substr(pos + 1, pos2 - pos - 1));
+                            size_t pos3 = val.find(',', pos2 + 1);
+                            if (pos3 != std::string::npos) {
+                                g_config.menu.accent_color[2] = std::stof(val.substr(pos2 + 1, pos3 - pos2 - 1));
+                                g_config.menu.accent_color[3] = std::stof(val.substr(pos3 + 1));
+                            }
+                        }
+                    }
+                }
                 // Visuals
-                if (key == "esp.enabled") g_config.visuals.esp.enabled = std::stoi(val);
+                else if (key == "esp.enabled") g_config.visuals.esp.enabled = std::stoi(val);
                 else if (key == "esp.key") g_config.visuals.esp.key = std::stoi(val);
                 else if (key == "esp.mode") g_config.visuals.esp.mode = std::stoi(val);
                 else if (key == "esp_box") g_config.visuals.esp_box = std::stoi(val);

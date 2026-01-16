@@ -56,6 +56,7 @@ namespace sdk {
     static t_il2cpp_image_get_name il2cpp_image_get_name = nullptr;
     static t_il2cpp_class_get_type il2cpp_class_get_type = nullptr;
     static t_il2cpp_type_get_object il2cpp_type_get_object = nullptr;
+    static t_il2cpp_resolve_icall il2cpp_resolve_icall = nullptr;
 
     HMODULE g_GameAssembly = nullptr;
     bool g_Initialized = false;
@@ -80,8 +81,6 @@ namespace sdk {
     bool Initialize() {
         if (g_Initialized) return true;
 
-        static t_il2cpp_resolve_icall il2cpp_resolve_icall = nullptr;
-        
         g_GameAssembly = GetModuleHandleA("GameAssembly.dll");
         if (!g_GameAssembly) return false;
 
@@ -872,6 +871,246 @@ namespace sdk {
             }
             
             return results;
+        }
+        
+        // ============================================================
+        // Mita Control / NavMeshAgent
+        // ============================================================
+        
+        void* GetMitaNavMeshAgent() {
+            // Get Mita via Animator
+            void* animator = GetMitaAnimator();
+            if (!animator) return nullptr;
+            
+            // Helper to get transform
+            static void* (*get_transform)(void*) = nullptr;
+            if (!get_transform && sdk::il2cpp_resolve_icall) 
+                get_transform = (void* (*)(void*))sdk::il2cpp_resolve_icall("UnityEngine.Component::get_transform");
+            
+            // Helper to get parent
+            static void* (*get_parent)(void*) = nullptr;
+            if (!get_parent && sdk::il2cpp_resolve_icall) 
+                get_parent = (void* (*)(void*))sdk::il2cpp_resolve_icall("UnityEngine.Transform::get_parent");
+                
+            // Helper to get gameObject
+            static void* (*get_gameObject)(void*) = nullptr;
+            if (!get_gameObject && sdk::il2cpp_resolve_icall) 
+                get_gameObject = (void* (*)(void*))sdk::il2cpp_resolve_icall("UnityEngine.Component::get_gameObject");
+
+            if (!get_transform || !get_gameObject) return nullptr;
+            
+            // Find Root Transform
+            void* transform = get_transform(animator);
+            if (transform && get_parent) {
+                // Traverse up to find potential root with NavMeshAgent
+                // Usually Mita root -> Model (Animator)
+                // So checking parent of animator's transform should be enough
+                void* parent = get_parent(transform);
+                if (parent) transform = parent; // Check parent (Root)
+            }
+            
+            void* gameObject = get_gameObject(transform);
+            if (!gameObject) return nullptr;
+            
+            // GameObject.GetComponent(Type)
+            static void* (*get_component)(void*, void*) = nullptr;
+            if (!get_component && sdk::il2cpp_resolve_icall) 
+                get_component = (void* (*)(void*, void*))sdk::il2cpp_resolve_icall("UnityEngine.GameObject::GetComponent");
+            
+            static void* navMeshAgentType = nullptr;
+            if (!navMeshAgentType && sdk::il2cpp_class_get_type && sdk::il2cpp_type_get_object) {
+                void* agentClass = sdk::GetClass("UnityEngine.AI", "NavMeshAgent");
+                if (agentClass) {
+                    Il2CppType* type = sdk::il2cpp_class_get_type((Il2CppClass*)agentClass);
+                    if (type) navMeshAgentType = sdk::il2cpp_type_get_object(type);
+                }
+            }
+            
+            if (!get_component || !navMeshAgentType) return nullptr;
+            
+            return get_component(gameObject, navMeshAgentType);
+        }
+
+        void SetAnimatorApplyRootMotion(void* animator, bool apply) {
+            if (!animator || !sdk::il2cpp_resolve_icall) return;
+            static void (*set_applyRootMotion)(void*, bool) = nullptr;
+            if (!set_applyRootMotion) set_applyRootMotion = (void (*)(void*, bool))sdk::il2cpp_resolve_icall("UnityEngine.Animator::set_applyRootMotion");
+            if (set_applyRootMotion) set_applyRootMotion(animator, apply);
+        }
+
+        void SetAgentSpeed(void* agent, float speed) {
+            if (!agent || !sdk::il2cpp_resolve_icall) return;
+            static void (*set_speed)(void*, float) = nullptr;
+            if (!set_speed) set_speed = (void (*)(void*, float))sdk::il2cpp_resolve_icall("UnityEngine.AI.NavMeshAgent::set_speed");
+            if (set_speed) set_speed(agent, speed);
+        }
+
+        void SetAgentAcceleration(void* agent, float acceleration) {
+            if (!agent || !sdk::il2cpp_resolve_icall) return;
+            static void (*set_acceleration)(void*, float) = nullptr;
+            if (!set_acceleration) set_acceleration = (void (*)(void*, float))sdk::il2cpp_resolve_icall("UnityEngine.AI.NavMeshAgent::set_acceleration");
+            if (set_acceleration) set_acceleration(agent, acceleration);
+        }
+
+        float GetAgentSpeed(void* agent) {
+            if (!agent || !sdk::il2cpp_resolve_icall) return 0.0f;
+            static float (*get_speed)(void*) = nullptr;
+            if (!get_speed) get_speed = (float (*)(void*))sdk::il2cpp_resolve_icall("UnityEngine.AI.NavMeshAgent::get_speed");
+            if (get_speed) return get_speed(agent);
+            return 0.0f;
+        }
+        
+        // ============================================================
+        // Outfit Changer Implementation
+        // Based on MitaCycle/MitaCycler dump analysis:
+        // - MitaCycle.themeOptions (List<MitaCycler>) at offset 0x30
+        // - MitaCycle.currentIndex (int) at offset 0x80
+        // - MitaCycler.currentMita (GameObject) at offset 0x20
+        // ============================================================
+        
+        static void* g_CachedMitaCycle = nullptr;
+        static int g_MitaCycleRefreshTimer = 0;
+        
+        void* GetMitaCycle() {
+            // Refresh cache periodically
+            if (g_MitaCycleRefreshTimer <= 0 || !g_CachedMitaCycle) {
+                g_CachedMitaCycle = FindObjectOfType("MitaCycle");
+                g_MitaCycleRefreshTimer = 120; // ~2s at 60fps
+            } else {
+                g_MitaCycleRefreshTimer--;
+            }
+            return g_CachedMitaCycle;
+        }
+        
+        int GetOutfitCount() {
+            void* mitaCycle = GetMitaCycle();
+            if (!mitaCycle || !IsValidPtr(mitaCycle)) return 0;
+            
+            // themeOptions is at offset 0x30, it's a List<MitaCycler>
+            void* themeOptions = *(void**)((uintptr_t)mitaCycle + 0x30);
+            if (!themeOptions || !IsValidPtr(themeOptions)) return 0;
+            
+            // List<T>._size is typically at offset 0x18 in IL2CPP
+            int count = *(int*)((uintptr_t)themeOptions + 0x18);
+            return count;
+        }
+        
+        int GetCurrentOutfit() {
+            void* mitaCycle = GetMitaCycle();
+            if (!mitaCycle || !IsValidPtr(mitaCycle)) return -1;
+            
+            // currentIndex is at offset 0x80
+            int index = *(int*)((uintptr_t)mitaCycle + 0x80);
+            return index;
+        }
+        
+        void SetGameObjectActive(void* gameObject, bool active) {
+            if (!gameObject || !IsValidPtr(gameObject)) return;
+            
+            static Il2CppClass* goClass = nullptr;
+            if (!goClass) goClass = GetClass("UnityEngine", "GameObject");
+            if (!goClass) return;
+            
+            static Il2CppMethod* setActive = nullptr;
+            if (!setActive) setActive = GetMethod(goClass, "SetActive", 1);
+            if (!setActive) return;
+            
+            void* params[1] = { &active };
+            RuntimeInvoke(setActive, gameObject, params, nullptr);
+        }
+        
+        bool SetOutfit(int index) {
+            void* mitaCycle = GetMitaCycle();
+            if (!mitaCycle || !IsValidPtr(mitaCycle)) return false;
+            
+            int count = GetOutfitCount();
+            if (index < 0 || index >= count) return false;
+            
+            int currentIndex = GetCurrentOutfit();
+            if (index == currentIndex) return true; // Already at this outfit
+            
+            // Get themeOptions list
+            void* themeOptions = *(void**)((uintptr_t)mitaCycle + 0x30);
+            if (!themeOptions || !IsValidPtr(themeOptions)) return false;
+            
+            // List<T>._items is at offset 0x10 (array of references)
+            void** items = *(void***)((uintptr_t)themeOptions + 0x10);
+            if (!items) return false;
+            
+            // Disable current outfit's GameObject
+            if (currentIndex >= 0 && currentIndex < count) {
+                void* currentCycler = items[currentIndex];
+                if (currentCycler && IsValidPtr(currentCycler)) {
+                    // currentMita GameObject is at offset 0x20
+                    void* currentMita = *(void**)((uintptr_t)currentCycler + 0x20);
+                    if (currentMita && IsValidPtr(currentMita)) {
+                        SetGameObjectActive(currentMita, false);
+                    }
+                }
+            }
+            
+            // Enable new outfit's GameObject
+            void* newCycler = items[index];
+            if (newCycler && IsValidPtr(newCycler)) {
+                void* newMita = *(void**)((uintptr_t)newCycler + 0x20);
+                if (newMita && IsValidPtr(newMita)) {
+                    SetGameObjectActive(newMita, true);
+                }
+            }
+            
+            // Update currentIndex in MitaCycle
+            *(int*)((uintptr_t)mitaCycle + 0x80) = index;
+            
+            return true;
+        }
+        
+        void CycleNextOutfit() {
+            int count = GetOutfitCount();
+            if (count <= 0) return;
+            
+            int current = GetCurrentOutfit();
+            int next = (current + 1) % count;
+            SetOutfit(next);
+        }
+        
+        void CyclePreviousOutfit() {
+            int count = GetOutfitCount();
+            if (count <= 0) return;
+            
+            int current = GetCurrentOutfit();
+            int prev = (current - 1 + count) % count;
+            SetOutfit(prev);
+        }
+        
+        std::vector<std::string> GetOutfitNames() {
+            std::vector<std::string> names;
+            
+            void* mitaCycle = GetMitaCycle();
+            if (!mitaCycle || !IsValidPtr(mitaCycle)) return names;
+            
+            int count = GetOutfitCount();
+            if (count <= 0) return names;
+            
+            // Get themeOptions list
+            void* themeOptions = *(void**)((uintptr_t)mitaCycle + 0x30);
+            if (!themeOptions || !IsValidPtr(themeOptions)) return names;
+            
+            void** items = *(void***)((uintptr_t)themeOptions + 0x10);
+            if (!items) return names;
+            
+            for (int i = 0; i < count; i++) {
+                void* cycler = items[i];
+                if (!cycler || !IsValidPtr(cycler)) {
+                    names.push_back("Unknown");
+                    continue;
+                }
+                
+                // name (LocalizedUI) is at offset 0x28, but hard to read
+                // For now, just use index
+                names.push_back("Outfit " + std::to_string(i + 1));
+            }
+            
+            return names;
         }
    }
 }

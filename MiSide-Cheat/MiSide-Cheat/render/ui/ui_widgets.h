@@ -25,12 +25,12 @@ namespace ui {
     inline ImColor accent_hover = ImColor(169, 204, 26, 255);
     
     // Text colors
-    inline ImColor text_color = ImColor(240, 242, 245, 255);
-    inline ImColor text_disabled = ImColor(110, 115, 125, 255);
+    inline ImColor text_color = ImColor(250, 250, 255, 255);
+    inline ImColor text_disabled = ImColor(170, 175, 180, 255);
     
     // Borders and hover
-    inline ImColor border_color = ImColor(0x20, 0x23, 0x28, 60);
-    inline ImColor hover_color = ImColor(0x20, 0x24, 0x2a, 255);
+    inline ImColor border_color = ImColor(0x40, 0x44, 0x4a, 150); // increased visibility
+    inline ImColor hover_color = ImColor(0x2a, 0x2e, 0x36, 255);
     
     // UI constants
     constexpr float ui_rounding = 8.0f;
@@ -99,17 +99,26 @@ namespace ui {
         
         ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 12.0f);  // More rounded
         ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.f);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(30 * scale, 30 * scale));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(20 * scale, 12 * scale));  // Reduced top padding for better title centering
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(12 * scale, 16 * scale));
         
         // Semi-transparent background
-        ImColor child_bg = ImColor(22, 24, 28, 200);  // 200/255 = ~78% opacity
+        ImColor child_bg = ImColor(35, 38, 45, 230);  // Less transparent, slightly lighter
         ImGui::PushStyleColor(ImGuiCol_ChildBg, (ImVec4)child_bg);
         ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
         
         ImGui::BeginChild(name, size, true, flags | ImGuiWindowFlags_NoScrollbar);
+        ImGui::Indent(15.0f * scale);
         
-        // Render Title with accent color
+        // Add extra spacing before title to move it down
+        ImGui::Dummy(ImVec2(0, 4 * scale));
+        
+        // Render Title with accent color - vertically centered
+        ImVec2 textSize = ImGui::CalcTextSize(name);
+        ImVec2 cursorPos = ImGui::GetCursorPos();
+        float verticalOffset = (ImGui::GetTextLineHeight() - textSize.y) / 2.0f;
+        ImGui::SetCursorPosY(cursorPos.y + verticalOffset);
+        
         ImGui::PushStyleColor(ImGuiCol_Text, (ImVec4)accent_color);
         ImGui::Text("%s", name);
         ImGui::PopStyleColor();
@@ -126,7 +135,7 @@ namespace ui {
         
         ImGui::Spacing();
         ImGui::Spacing();
-        ImGui::Dummy(ImVec2(0, 20 * scale));
+        ImGui::Dummy(ImVec2(0, 10 * scale));  // Reduced spacing after title
     }
     
     inline void EndChild() {
@@ -160,47 +169,49 @@ namespace ui {
         float anim = GetAnimationState(label, active);
         float hover_anim = GetHoverAnimation(label, hovered);
         
-        // Background gradient
+        // Background gradient with animation
         if (active) {
             ImColor grad_start = ImColor(
-                (int)(accent_color.Value.x * 255 * 0.3f),
-                (int)(accent_color.Value.y * 255 * 0.3f),
-                (int)(accent_color.Value.z * 255 * 0.3f),
-                200
+                (int)(accent_color.Value.x * 255 * 0.3f * anim),
+                (int)(accent_color.Value.y * 255 * 0.3f * anim),
+                (int)(accent_color.Value.z * 255 * 0.3f * anim),
+                (int)(200 * anim)
             );
             ImColor grad_end = ImColor(
-                (int)(accent_color.Value.x * 255 * 0.15f),
-                (int)(accent_color.Value.y * 255 * 0.15f),
-                (int)(accent_color.Value.z * 255 * 0.15f),
-                180
+                (int)(accent_color.Value.x * 255 * 0.15f * anim),
+                (int)(accent_color.Value.y * 255 * 0.15f * anim),
+                (int)(accent_color.Value.z * 255 * 0.15f * anim),
+                (int)(180 * anim)
             );
             
             window->DrawList->AddRectFilledMultiColor(bb.Min, bb.Max, grad_start, grad_start, grad_end, grad_end);
             
-            // Active indicator line
+            // Active indicator line with animation
+            float indicator_width = (size_arg.x - 20) * anim;
+            float indicator_x = bb.Min.x + 10 + (size_arg.x - 20 - indicator_width) / 2;
             window->DrawList->AddRectFilled(
-                ImVec2(bb.Min.x + 10, bb.Max.y - 2),
-                ImVec2(bb.Max.x - 10, bb.Max.y),
+                ImVec2(indicator_x, bb.Max.y - 2),
+                ImVec2(indicator_x + indicator_width, bb.Max.y),
                 accent_color, 2.f
             );
         } else if (hovered) {
             ImColor grad_start = ImColor(
-                (int)(accent_color.Value.x * 255 * 0.6f),
-                (int)(accent_color.Value.y * 255 * 0.6f),
-                (int)(accent_color.Value.z * 255 * 0.6f),
-                200
+                (int)(accent_color.Value.x * 255 * 0.6f * hover_anim),
+                (int)(accent_color.Value.y * 255 * 0.6f * hover_anim),
+                (int)(accent_color.Value.z * 255 * 0.6f * hover_anim),
+                (int)(200 * hover_anim)
             );
             ImColor grad_end = ImColor(
-                (int)(accent_color.Value.x * 255 * 0.3f),
-                (int)(accent_color.Value.y * 255 * 0.3f),
-                (int)(accent_color.Value.z * 255 * 0.3f),
-                180
+                (int)(accent_color.Value.x * 255 * 0.3f * hover_anim),
+                (int)(accent_color.Value.y * 255 * 0.3f * hover_anim),
+                (int)(accent_color.Value.z * 255 * 0.3f * hover_anim),
+                (int)(180 * hover_anim)
             );
             
             window->DrawList->AddRectFilledMultiColor(bb.Min, bb.Max, grad_start, grad_start, grad_end, grad_end);
         }
         
-        // Text
+        // Text with animation
         ImColor text_col = active ? accent_color : text_disabled;
         if (!active && hovered) {
             text_col = ImColor(
@@ -267,7 +278,7 @@ namespace ui {
         
         // Label
         ImGui::PushStyleColor(ImGuiCol_Text, (ImVec4)(hovered ? text_color : text_disabled));
-        ImGui::RenderText(ImVec2(check_bb.Max.x + 12 * scale, check_bb.Min.y + (square_sz - label_size.y) / 2.0f), label);
+        ImGui::RenderText(ImVec2(check_bb.Max.x + 15 * scale, check_bb.Min.y + (square_sz - label_size.y) / 2.0f), label);
         ImGui::PopStyleColor();
         
         return pressed;

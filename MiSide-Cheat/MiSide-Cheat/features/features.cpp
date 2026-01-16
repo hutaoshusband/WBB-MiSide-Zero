@@ -18,9 +18,6 @@ namespace features {
         // Visuals
         modules.push_back({ "ESP",           "Visuals",  &config::g_config.visuals.esp.enabled });
         modules.push_back({ "Chams",         "Visuals",  &config::g_config.visuals.chams.enabled });
-        modules.push_back({ "Fullbright",    "Visuals",  &config::g_config.visuals.fullbright.enabled });
-        modules.push_back({ "No Fog",        "Visuals",  &config::g_config.visuals.no_fog.enabled });
-        modules.push_back({ "Crosshair",     "Visuals",  &config::g_config.visuals.crosshair.enabled });
         
         // Aimbot
         modules.push_back({ "Aimbot",        "Aimbot",   &config::g_config.aimbot.aimbot.enabled });
@@ -30,13 +27,8 @@ namespace features {
         modules.push_back({ "Fly",           "Movement", &config::g_config.misc.fly_hack.enabled });
         modules.push_back({ "NoClip",        "Movement", &config::g_config.misc.no_clip.enabled });
         
-        // Player
-        modules.push_back({ "God Mode",      "Player",   &config::g_config.misc.god_mode.enabled });
-        modules.push_back({ "Inf. Stamina",  "Player",   &config::g_config.misc.infinite_stamina.enabled });
-        modules.push_back({ "Inf. Ammo",     "Player",   &config::g_config.misc.infinite_ammo.enabled });
-        
-        // Misc
-        modules.push_back({ "Teleport",      "Misc",     &config::g_config.misc.teleport.enabled });
+        // Game
+        modules.push_back({ "Mita Speed",    "Game",     &config::g_config.misc.mita_speed_enabled });
         modules.push_back({ "Debug View",    "Misc",     &config::g_config.misc.debug_view });
         
         return modules;
@@ -135,6 +127,45 @@ namespace features {
                         sdk::game::SetSpeed(move, saved_speed);
                         saved_speed = -1.0f; // Reset so we can capture it again next time
                     }
+                }
+            }
+
+            // Mita Speed Hack Logic
+            static float saved_mita_speed = -1.0f;
+            
+            if (config::g_config.misc.mita_speed_enabled) {
+                void* agent = sdk::game::GetMitaNavMeshAgent();
+                void* animator = sdk::game::GetMitaAnimator();
+                
+                if (animator) {
+                    sdk::game::SetAnimatorApplyRootMotion(animator, false);
+                }
+                
+                if (agent) {
+                    // Save original speed once
+                    if (saved_mita_speed < 0.0f) {
+                         float currentSpeed = sdk::game::GetAgentSpeed(agent);
+                         if (currentSpeed > 0.1f) saved_mita_speed = currentSpeed;
+                         else saved_mita_speed = 3.5f; // Default fallback
+                    }
+                    
+                    // Apply speed
+                    sdk::game::SetAgentSpeed(agent, config::g_config.misc.mita_speed);
+                    // Also boost acceleration to match speed increase
+                    sdk::game::SetAgentAcceleration(agent, 99999.0f); 
+                }
+            } else {
+                // Restore logic
+                if (saved_mita_speed > 0.0f) {
+                     void* animator = sdk::game::GetMitaAnimator();
+                     if (animator) sdk::game::SetAnimatorApplyRootMotion(animator, true);
+
+                     void* agent = sdk::game::GetMitaNavMeshAgent();
+                     if (agent) {
+                         sdk::game::SetAgentSpeed(agent, saved_mita_speed);
+                         sdk::game::SetAgentAcceleration(agent, 8.0f); // Reset to something reasonable
+                     }
+                     saved_mita_speed = -1.0f;
                 }
             }
 
@@ -237,6 +268,14 @@ namespace features {
                             // W2S Test on Mita
                             sdk::Vector3 screenMita = sdk::game::WorldToScreen(mitaPos);
                             ImGui::Text("Screen: %.1f, %.1f (Z: %.1f)", screenMita.x, screenMita.y, screenMita.z);
+
+                            // NavMeshAgent Info
+                            void* agent = sdk::game::GetMitaNavMeshAgent();
+                            ImGui::Text("NavMeshAgent: %p", agent);
+                            if (agent) {
+                                float speed = sdk::game::GetAgentSpeed(agent);
+                                ImGui::Text("Agent Speed: %.2f", speed);
+                            }
                         }
 
                         // World To Screen Test

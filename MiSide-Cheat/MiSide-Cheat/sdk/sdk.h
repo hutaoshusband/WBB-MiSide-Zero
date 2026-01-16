@@ -184,5 +184,32 @@ namespace sdk {
         
         // Filter renderers by body part
         std::vector<void*> GetRenderersByBodyPart(void* gameObject, BodyPart part);
+
+        // ============================================================
+        // Mita Control / NavMeshAgent
+        // ============================================================
+        void* GetMitaNavMeshAgent();
+        void SetAnimatorApplyRootMotion(void* animator, bool apply);
+        void SetAgentSpeed(void* agent, float speed);
+        void SetAgentAcceleration(void* agent, float acceleration);
+        float GetAgentSpeed(void* agent);
+        
+        // ============================================================
+        // Outfit Changer (based on MitaCycle/MitaCycler dump analysis)
+        // ============================================================
+        // MitaCycle class contains themeOptions (List<MitaCycler>) at offset 0x30
+        // MitaCycler contains currentMita (GameObject) at offset 0x20
+        // currentIndex at offset 0x80 tracks which outfit is active
+        
+        void* GetMitaCycle();                    // Find MitaCycle instance
+        int GetOutfitCount();                    // Get number of available outfits  
+        int GetCurrentOutfit();                  // Get current outfit index
+        bool SetOutfit(int index);               // Set outfit by index
+        void CycleNextOutfit();                  // Cycle to next outfit
+        void CyclePreviousOutfit();              // Cycle to previous outfit
+        std::vector<std::string> GetOutfitNames(); // Get list of outfit names
+        
+        // GameObject helpers
+        void SetGameObjectActive(void* gameObject, bool active);
     }
 }

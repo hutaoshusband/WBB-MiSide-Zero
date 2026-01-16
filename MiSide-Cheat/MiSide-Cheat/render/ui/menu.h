@@ -4,6 +4,7 @@
 #include "../texture_loader.h"
 #include "../../config/config.h"
 #include "../../features/features.h"
+#include "../../sdk/sdk.h"
 #include "../render.h"
 #include "../../core/core.h"
 
@@ -14,6 +15,7 @@ namespace ui {
     
     // Menu state
     inline int g_nCurrentTab = 0;
+    inline std::vector<std::string> g_vecConfigFiles;
     inline float g_fMenuAlpha = 0.0f;
     
     // Sub-tabs for each main tab
@@ -182,7 +184,7 @@ namespace ui {
     // ============================================================
     inline void RenderVisualsTab() {
         float dpi_scale = scale;
-        float half_width = (ImGui::GetWindowWidth() - 45.0f * dpi_scale) / 2.0f;
+        float full_width = ImGui::GetWindowWidth() - 30.0f * dpi_scale;
         float available_height = ImGui::GetWindowHeight() - 130 * dpi_scale;
         
         // Subtabs
@@ -195,96 +197,47 @@ namespace ui {
         
         if (g_nVisualsSubTab == 0) {
             // ESP
-            BeginChild("ESP Settings", ImVec2(half_width, available_height - 40 * dpi_scale));
+            BeginChild("ESP Settings", ImVec2(full_width, available_height));
             {
                 CheckboxBind("Enable ESP", &config::g_config.visuals.esp);
                 if (config::g_config.visuals.esp.enabled) {
+                    ImGui::Indent();
                     Checkbox("Box", &config::g_config.visuals.esp_box);
                     Checkbox("Name", &config::g_config.visuals.esp_name);
-                    Checkbox("Health", &config::g_config.visuals.esp_health);
                     Checkbox("Distance", &config::g_config.visuals.esp_distance);
                     SliderFloat("Max Distance", &config::g_config.visuals.esp_max_distance, 100.0f, 2000.0f, "%.0f");
+                    ImGui::Unindent();
                 }
-            }
-            EndChild();
-            
-            ImGui::SameLine(0, 15 * dpi_scale);
-            
-            BeginChild("ESP Colors", ImVec2(half_width, available_height - 40 * dpi_scale));
-            {
-                ImGui::Text("Box Color");
+                
+                Separator();
+                ImGui::Text("ESP Colors");
                 ColorPicker("##boxcol", config::g_config.visuals.esp_box_color);
             }
             EndChild();
         }
         else if (g_nVisualsSubTab == 1) {
             // Chams
-            BeginChild("Chams Settings", ImVec2(half_width, available_height - 40 * dpi_scale));
+            BeginChild("Chams Settings", ImVec2(full_width, available_height));
             {
                 CheckboxBind("Enable Chams", &config::g_config.visuals.chams);
                 if (config::g_config.visuals.chams.enabled) {
+                    ImGui::Indent();
                     const char* chams_types[] = { "Flat", "Textured", "Glow" };
                     Combo("Chams Type", &config::g_config.visuals.chams_type, chams_types, 3);
-                    
-                    Separator();
-                    Checkbox("Partial Body Modulation", &config::g_config.visuals.chams_partial_body);
-                    
-                    if (config::g_config.visuals.chams_partial_body) {
-                        ImGui::Indent(10.0f * dpi_scale);
-                        Checkbox("Head", &config::g_config.visuals.chams_head);
-                        Checkbox("Body", &config::g_config.visuals.chams_body);
-                        Checkbox("Legs", &config::g_config.visuals.chams_legs);
-                        Checkbox("Arms", &config::g_config.visuals.chams_arms);
-                        ImGui::Unindent(10.0f * dpi_scale);
-                    }
+                    ImGui::Unindent();
                 }
-            }
-            EndChild();
-            
-            ImGui::SameLine(0, 15 * dpi_scale);
-            
-            BeginChild("Chams Colors", ImVec2(half_width, available_height - 40 * dpi_scale));
-            {
-                if (!config::g_config.visuals.chams_partial_body) {
-                    ImGui::Text("Chams Color");
-                    ColorPicker("##chamscol", config::g_config.visuals.chams_color);
-                } else {
-                    ImGui::Text("Head Color");
-                    ColorPicker("##headcol", config::g_config.visuals.chams_head_color);
-                    
-                    ImGui::Text("Body Color");
-                    ColorPicker("##bodycol", config::g_config.visuals.chams_body_color);
-                    
-                    ImGui::Text("Legs Color");
-                    ColorPicker("##legscol", config::g_config.visuals.chams_legs_color);
-                    
-                    ImGui::Text("Arms Color");
-                    ColorPicker("##armscol", config::g_config.visuals.chams_arms_color);
-                }
+                
+                Separator();
+                ImGui::Text("Chams Color");
+                ColorPicker("##chamscol", config::g_config.visuals.chams_color);
             }
             EndChild();
         }
         else if (g_nVisualsSubTab == 2) {
             // World
-            BeginChild("World Settings", ImVec2(half_width, available_height - 40 * dpi_scale));
+            BeginChild("World Settings", ImVec2(full_width, available_height));
             {
-                CheckboxBind("Fullbright", &config::g_config.visuals.fullbright);
-                CheckboxBind("No Fog", &config::g_config.visuals.no_fog);
-                Separator();
-                CheckboxBind("Crosshair", &config::g_config.visuals.crosshair);
-                if (config::g_config.visuals.crosshair.enabled) {
-                    const char* xhair_types[] = { "Cross", "Circle", "Dot" };
-                    Combo("Type", &config::g_config.visuals.crosshair_type, xhair_types, 3);
-                }
-            }
-            EndChild();
-            
-            ImGui::SameLine(0, 15 * dpi_scale);
-            
-            BeginChild("Crosshair Colors", ImVec2(half_width, available_height - 40 * dpi_scale));
-            {
-                ImGui::Text("Crosshair Color");
-                ColorPicker("##xhaircol", config::g_config.visuals.crosshair_color);
+                ImGui::TextDisabled("No world features available yet.");
             }
             EndChild();
         }
@@ -331,7 +284,7 @@ namespace ui {
     // ============================================================
     inline void RenderMiscTab() {
         float dpi_scale = scale;
-        float half_width = (ImGui::GetWindowWidth() - 45.0f * dpi_scale) / 2.0f;
+        float full_width = ImGui::GetWindowWidth() - 30.0f * dpi_scale;
         float available_height = ImGui::GetWindowHeight() - 130 * dpi_scale;
         
         // Subtabs
@@ -344,69 +297,189 @@ namespace ui {
         
         if (g_nMiscSubTab == 0) {
             // Movement
-            BeginChild("Movement Settings", ImVec2(half_width, available_height - 40 * dpi_scale));
+            BeginChild("Movement Settings", ImVec2(full_width, available_height));
             {
                 CheckboxBind("Speed Hack", &config::g_config.misc.speed_hack);
                 if (config::g_config.misc.speed_hack.enabled) {
+                    ImGui::Indent();
                     SliderFloat("Speed Multiplier", &config::g_config.misc.speed_multiplier, 1.0f, 5.0f, "%.1fx");
+                    ImGui::Unindent();
                 }
                 
                 Separator();
                 CheckboxBind("Fly Hack", &config::g_config.misc.fly_hack);
                 if (config::g_config.misc.fly_hack.enabled) {
+                    ImGui::Indent();
                     SliderFloat("Fly Speed", &config::g_config.misc.fly_speed, 1.0f, 50.0f, "%.0f");
+                    ImGui::Unindent();
                 }
                 
                 Separator();
                 CheckboxBind("NoClip", &config::g_config.misc.no_clip);
             }
             EndChild();
-            
-            ImGui::SameLine(0, 15 * dpi_scale);
-            
-            BeginChild("Movement Logic", ImVec2(half_width, available_height - 40 * dpi_scale));
-            {
-                ImGui::TextDisabled("How it works:");
-                ImGui::BulletText("Set Key to M2 or Shift");
-                ImGui::BulletText("Right-click key box to");
-                ImGui::BulletText("Toggle, Hold, or Always");
-                
-                Separator();
-                ImGui::TextDisabled("Current Binds:");
-                if (config::g_config.misc.speed_hack.IsActive()) ImGui::TextColored(accent_color, "Speed Hack [ACTIVE]");
-                if (config::g_config.misc.no_clip.IsActive()) ImGui::TextColored(accent_color, "NoClip [ACTIVE]");
-            }
-            EndChild();
         }
         else if (g_nMiscSubTab == 1) {
             // Player
-            BeginChild("Player Cheats", ImVec2(half_width, available_height - 40 * dpi_scale));
+            BeginChild("Player Cheats", ImVec2(full_width, available_height));
             {
-                CheckboxBind("God Mode", &config::g_config.misc.god_mode);
-                CheckboxBind("Infinite Stamina", &config::g_config.misc.infinite_stamina);
-                CheckboxBind("Infinite Ammo", &config::g_config.misc.infinite_ammo);
-            }
-            EndChild();
-            
-            ImGui::SameLine(0, 15 * dpi_scale);
-            
-            BeginChild("Teleport", ImVec2(half_width, available_height - 40 * dpi_scale));
-            {
-                CheckboxBind("Teleport", &config::g_config.misc.teleport);
+                ImGui::TextDisabled("No player features available yet.");
             }
             EndChild();
         }
         else if (g_nMiscSubTab == 2) {
             // Game
-            BeginChild("Game Modifications", ImVec2(-1, available_height - 40 * dpi_scale));
+            BeginChild("Game Modifications", ImVec2(full_width, available_height));
             {
-                Checkbox("Debug View", &config::g_config.misc.debug_view);
+                // Mita Speed Hack
+                Checkbox("Mita Speed Hack", &config::g_config.misc.mita_speed_enabled);
+                if (config::g_config.misc.mita_speed_enabled) {
+                    ImGui::Indent();
+                    SliderFloat("Speed Multiplier", &config::g_config.misc.mita_speed, 1.0f, 20.0f, "%.1f");
+                    ImGui::Unindent();
+                }
+
                 Separator();
-                ImGui::TextDisabled("Game-specific features will be added here.");
-                ImGui::TextDisabled("(Requires game hooking implementation)");
+                Checkbox("Debug View", &config::g_config.misc.debug_view);
             }
             EndChild();
         }
+    }
+    
+    // ============================================================
+    // Tab Content: Config (NEW - like CS2 Cheat)
+    // ============================================================
+    inline void RefreshConfigList() {
+        g_vecConfigFiles.clear();
+        std::string dir = config::GetConfigDirectory();
+        if (dir.empty()) return;
+        
+        WIN32_FIND_DATAA fd;
+        HANDLE hFind = FindFirstFileA((dir + "\\*.cfg").c_str(), &fd);
+        if (hFind != INVALID_HANDLE_VALUE) {
+            do {
+                if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+                    g_vecConfigFiles.push_back(fd.cFileName);
+                }
+            } while (FindNextFileA(hFind, &fd));
+            FindClose(hFind);
+        }
+    }
+    
+    inline void RenderConfigTab() {
+        float dpi_scale = scale;
+        float half_width = (ImGui::GetWindowWidth() - 45.0f * dpi_scale) / 2.0f;
+        float available_height = ImGui::GetWindowHeight() - 100 * dpi_scale;
+        float start_y = 65 * dpi_scale;
+        
+        static bool first_run = true;
+        if (first_run) {
+            RefreshConfigList();
+            first_run = false;
+        }
+        
+        static char cfgName[64] = "default";
+        static int selectedConfig = 0;
+        
+        ImGui::SetCursorPos(ImVec2(15 * dpi_scale, start_y));
+        
+        // Left Panel - Config Management
+        BeginChild("Config Management", ImVec2(half_width, available_height));
+        {
+            ImGui::Text("Config Name:");
+            ImGui::InputText("##cfgname", cfgName, 64);
+            
+            ImGui::Spacing();
+            Separator();
+            ImGui::Spacing();
+            
+            if (Button("Create New", ImVec2(half_width - 30, 30 * dpi_scale))) {
+                if (strlen(cfgName) > 0) {
+                    config::Save(cfgName);
+                    RefreshConfigList();
+                }
+            }
+            
+            ImGui::Spacing();
+            
+            if (Button("Load Selected", ImVec2(half_width - 30, 30 * dpi_scale))) {
+                if (selectedConfig >= 0 && selectedConfig < (int)g_vecConfigFiles.size()) {
+                    std::string name = g_vecConfigFiles[selectedConfig];
+                    // Remove .cfg extension
+                    if (name.size() > 4) name = name.substr(0, name.size() - 4);
+                    config::Load(name.c_str());
+                }
+            }
+            
+            ImGui::Spacing();
+            
+            if (Button("Save Selected", ImVec2(half_width - 30, 30 * dpi_scale))) {
+                if (selectedConfig >= 0 && selectedConfig < (int)g_vecConfigFiles.size()) {
+                    std::string name = g_vecConfigFiles[selectedConfig];
+                    if (name.size() > 4) name = name.substr(0, name.size() - 4);
+                    config::Save(name.c_str());
+                }
+            }
+            
+            ImGui::Spacing();
+            
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.1f, 0.1f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.7f, 0.2f, 0.2f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.9f, 0.1f, 0.1f, 1.0f));
+            if (Button("Delete Selected", ImVec2(half_width - 30, 30 * dpi_scale))) {
+                if (selectedConfig >= 0 && selectedConfig < (int)g_vecConfigFiles.size()) {
+                    std::string dir = config::GetConfigDirectory();
+                    std::string path = dir + "\\" + g_vecConfigFiles[selectedConfig];
+                    DeleteFileA(path.c_str());
+                    RefreshConfigList();
+                    if (selectedConfig >= (int)g_vecConfigFiles.size()) {
+                        selectedConfig = (int)g_vecConfigFiles.size() - 1;
+                    }
+                }
+            }
+            ImGui::PopStyleColor(3);
+            
+            ImGui::Spacing();
+            Separator();
+            ImGui::Spacing();
+            
+            if (Button("Refresh List", ImVec2(half_width - 30, 30 * dpi_scale))) {
+                RefreshConfigList();
+            }
+            
+            ImGui::Spacing();
+            
+            if (Button("Open Folder", ImVec2(half_width - 30, 30 * dpi_scale))) {
+                std::string dir = config::GetConfigDirectory();
+                ShellExecuteA(NULL, "open", dir.c_str(), NULL, NULL, SW_SHOWNORMAL);
+            }
+        }
+        EndChild();
+        
+        ImGui::SameLine(0, 15 * dpi_scale);
+        
+        // Right Panel - Config List
+        BeginChild("Available Configs", ImVec2(half_width, available_height));
+        {
+            ImGui::TextColored(ImVec4(accent_color.Value.x, accent_color.Value.y, accent_color.Value.z, 1.0f), "Available Configs");
+            ImGui::Spacing();
+            Separator();
+            ImGui::Spacing();
+            
+            if (g_vecConfigFiles.empty()) {
+                ImGui::TextDisabled("No configs found.");
+                ImGui::TextDisabled("Create one using the left panel.");
+            } else {
+                for (int i = 0; i < (int)g_vecConfigFiles.size(); i++) {
+                    bool is_selected = (selectedConfig == i);
+                    
+                    if (Tab(g_vecConfigFiles[i].c_str(), is_selected, ImVec2(half_width - 30, 35 * dpi_scale))) {
+                        selectedConfig = i;
+                    }
+                }
+            }
+        }
+        EndChild();
     }
     
     // ============================================================
@@ -414,13 +487,13 @@ namespace ui {
     // ============================================================
     inline void RenderSettingsTab() {
         float dpi_scale = scale;
-        float half_width = (ImGui::GetWindowWidth() - 45.0f * dpi_scale) / 2.0f;
+        float full_width = ImGui::GetWindowWidth() - 30.0f * dpi_scale;
         float available_height = ImGui::GetWindowHeight() - 100 * dpi_scale;
         float start_y = 65 * dpi_scale;
         
         ImGui::SetCursorPos(ImVec2(15 * dpi_scale, start_y));
         
-        BeginChild("Menu Settings", ImVec2(half_width, available_height));
+        BeginChild("Menu Settings", ImVec2(full_width, available_height));
         {
             ImGui::Text("Menu Key:");
             ImGui::SameLine();
@@ -447,49 +520,11 @@ namespace ui {
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.7f, 0.2f, 0.2f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.9f, 0.1f, 0.1f, 1.0f));
             
-            if (ImGui::Button("UNLOAD CHEAT", ImVec2(half_width - 30, 35 * dpi_scale))) {
+            if (ImGui::Button("UNLOAD CHEAT", ImVec2(full_width - 30, 35 * dpi_scale))) {
                 g_bShouldUnload = true;
             }
             
             ImGui::PopStyleColor(3);
-            
-            Separator();
-            ImGui::Spacing();
-            
-            // Config System
-            ImGui::Text("Configs:");
-            static char cfgName[32] = "default";
-            ImGui::InputText("##configname", cfgName, 32);
-            
-            if (ImGui::Button("Save Config", ImVec2((half_width - 40) / 2, 30 * dpi_scale))) {
-                config::Save(cfgName);
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Load Config", ImVec2((half_width - 40) / 2, 30 * dpi_scale))) {
-                config::Load(cfgName);
-            }
-
-        }
-        EndChild();
-        
-        ImGui::SameLine(0, 15 * dpi_scale);
-        
-        BeginChild("Information", ImVec2(half_width, available_height));
-        {
-            ImGui::TextColored(ImVec4(accent_color.Value.x, accent_color.Value.y, accent_color.Value.z, 1.0f), "WBB MiSide-Zero");
-            ImGui::TextDisabled("Version: 1.0.0");
-            ImGui::TextDisabled("Build: Debug");
-            
-            Separator();
-            ImGui::TextDisabled("Hotkeys:");
-            ImGui::BulletText("INSERT - Toggle Menu");
-            ImGui::BulletText("END - Unload Cheat");
-            
-            Separator();
-            ImGui::TextDisabled("Credits:");
-            ImGui::BulletText("WallbangBros Team");
-            ImGui::BulletText("ImGui by ocornut");
-            ImGui::BulletText("MinHook by TsudaKageyu");
         }
         EndChild();
     }
@@ -531,26 +566,62 @@ namespace ui {
             config::g_config.menu.accent_color[3]
         ));
         
-        // Menu animation
-        float target_alpha = render::menu::IsOpen() ? 1.0f : 0.0f;
-        float delta = io.DeltaTime * config::g_config.menu.animation_speed;
+        // Menu animation with fade and scale
+        static float g_fMenuScale = 0.0f;
+        static bool g_bMenuInitialized = false;
+        static bool g_bLastMenuOpenState = false;
+        bool menu_is_open = render::menu::IsOpen();
         
-        if (g_fMenuAlpha != target_alpha) {
-            if (g_fMenuAlpha < target_alpha) {
-                g_fMenuAlpha += delta;
-                if (g_fMenuAlpha > 1.0f) g_fMenuAlpha = 1.0f;
-            } else {
-                g_fMenuAlpha -= delta;
-                if (g_fMenuAlpha < 0.0f) g_fMenuAlpha = 0.0f;
-            }
+        // Initialize menu state on first run
+        if (!g_bMenuInitialized) {
+            g_bLastMenuOpenState = menu_is_open;
+            g_bMenuInitialized = true;
+            // Start with menu closed animation state
+            g_fMenuAlpha = 0.0f;
+            g_fMenuScale = 0.5f;
         }
         
-        if (g_fMenuAlpha <= 0.01f) return;
+        // Detect menu state change to trigger animation
+        if (menu_is_open != g_bLastMenuOpenState) {
+            g_bLastMenuOpenState = menu_is_open;
+            // Reset animation when state changes - start from current alpha
+            // This ensures animation plays every time menu opens/closes
+        }
         
-        // Menu window - 820x750
-        ImVec2 menu_size = ImVec2(820 * dpi_scale, 750 * dpi_scale);
+        float target_alpha = menu_is_open ? 1.0f : 0.0f;
+        float target_scale = menu_is_open ? 1.0f : 0.5f;
+        float menu_anim_speed = config::g_config.menu.animation_speed;
+        
+        // Ensure minimum animation speed to avoid division by zero or no animation
+        if (menu_anim_speed < 0.1f) menu_anim_speed = 0.1f;
+        
+        // Simple linear interpolation for animation
+        float alpha_diff = target_alpha - g_fMenuAlpha;
+        float scale_diff = target_scale - g_fMenuScale;
+        
+        g_fMenuAlpha += alpha_diff * io.DeltaTime * menu_anim_speed;
+        g_fMenuScale += scale_diff * io.DeltaTime * menu_anim_speed * 0.8f;
+
+        // Helper to avoid infinite tail on interpolation
+        if (!menu_is_open && g_fMenuAlpha < 0.15f) {
+            // Force finish when nearing the end
+            float finish_speed = 5.0f; 
+            g_fMenuAlpha -= finish_speed * io.DeltaTime;
+        }
+
+        // Clamp values
+        if (!menu_is_open && g_fMenuAlpha < 0.05f) g_fMenuAlpha = 0.0f; // Only snap when closing
+        if (g_fMenuAlpha < 0.0f) g_fMenuAlpha = 0.0f;
+        if (g_fMenuAlpha > 1.0f) g_fMenuAlpha = 1.0f;
+        
+        // Return early if menu is closed AND fully faded out
+        if (!menu_is_open && g_fMenuAlpha <= 0.0f) return;
+        
+        // Menu window - 820x750 with scale animation
+        ImVec2 base_size = ImVec2(820 * dpi_scale, 750 * dpi_scale);
+        ImVec2 menu_size = ImVec2(base_size.x * g_fMenuScale, base_size.y * g_fMenuScale);
         ImGui::SetNextWindowSize(menu_size, ImGuiCond_Always);
-        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
         
         ImGui::PushStyleVar(ImGuiStyleVar_Alpha, g_fMenuAlpha);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui_rounding);
@@ -578,8 +649,8 @@ namespace ui {
         draw->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + 50 * dpi_scale), child_bg_color, ui_rounding, ImDrawFlags_RoundCornersTop);
         
         // Main tabs - CENTERED in header
-        // 4 tabs * 100px + 3 * 10px spacing = 430px total
-        float tabs_total_width = (4 * 100 + 3 * 10) * dpi_scale;
+        // 5 tabs * 90px + 4 * 10px spacing = 490px total
+        float tabs_total_width = (5 * 90 + 4 * 10) * dpi_scale;
         float tabs_start_x = (size.x - tabs_total_width) / 2.0f;
         
         ImGui::SetCursorPos(ImVec2(tabs_start_x, 5 * dpi_scale));
@@ -587,26 +658,40 @@ namespace ui {
         {
             ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10 * dpi_scale, 0));
             
-            if (Tab("Visuals", g_nCurrentTab == 0, ImVec2(100, 40))) g_nCurrentTab = 0;
+            if (Tab("Visuals", g_nCurrentTab == 0, ImVec2(90, 40))) g_nCurrentTab = 0;
             ImGui::SameLine();
-            if (Tab("Aimbot", g_nCurrentTab == 1, ImVec2(100, 40))) g_nCurrentTab = 1;
+            if (Tab("Aimbot", g_nCurrentTab == 1, ImVec2(90, 40))) g_nCurrentTab = 1;
             ImGui::SameLine();
-            if (Tab("Misc", g_nCurrentTab == 2, ImVec2(100, 40))) g_nCurrentTab = 2;
+            if (Tab("Misc", g_nCurrentTab == 2, ImVec2(90, 40))) g_nCurrentTab = 2;
             ImGui::SameLine();
-            if (Tab("Settings", g_nCurrentTab == 3, ImVec2(100, 40))) g_nCurrentTab = 3;
+            if (Tab("Config", g_nCurrentTab == 3, ImVec2(90, 40))) g_nCurrentTab = 3;
+            ImGui::SameLine();
+            if (Tab("Settings", g_nCurrentTab == 4, ImVec2(90, 40))) g_nCurrentTab = 4;
             
             ImGui::PopStyleVar();
         }
         ImGui::EndGroup();
         
-        // Tab content animation
+        // Tab content animation with slide and fade
         static int last_tab = -1;
         static float content_alpha = 1.0f;
+        static float content_offset = 0.0f;
+        static int tab_direction = 0;  // -1 for left, 1 for right
+        
         if (g_nCurrentTab != last_tab) {
             content_alpha = 0.0f;
+            tab_direction = (g_nCurrentTab > last_tab) ? 1 : -1;
+            content_offset = 30.0f * tab_direction * dpi_scale;
             last_tab = g_nCurrentTab;
         }
-        content_alpha = ImLerp(content_alpha, 1.0f, io.DeltaTime * 15.0f);
+        
+        float anim_speed = config::g_config.menu.animation_speed * 1.5f;
+        content_alpha = ImLerp(content_alpha, 1.0f, io.DeltaTime * anim_speed);
+        content_offset = ImLerp(content_offset, 0.0f, io.DeltaTime * anim_speed);
+        
+        // Apply slide offset
+        ImVec2 original_cursor = ImGui::GetCursorPos();
+        ImGui::SetCursorPos(ImVec2(original_cursor.x + content_offset, original_cursor.y));
         
         ImGui::PushStyleVar(ImGuiStyleVar_Alpha, content_alpha * g_fMenuAlpha);
         
@@ -614,10 +699,14 @@ namespace ui {
             case 0: RenderVisualsTab(); break;
             case 1: RenderAimbotTab(); break;
             case 2: RenderMiscTab(); break;
-            case 3: RenderSettingsTab(); break;
+            case 3: RenderConfigTab(); break;
+            case 4: RenderSettingsTab(); break;
         }
         
         ImGui::PopStyleVar();
+        
+        // Restore cursor position after slide animation
+        ImGui::SetCursorPos(original_cursor);
         
         // Footer (30px height)
         float footer_height = 30.0f * dpi_scale;
