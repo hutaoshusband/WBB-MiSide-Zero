@@ -77,6 +77,22 @@ namespace sdk {
     // Thread-local flag to track if this thread is attached to IL2CPP runtime
     static thread_local bool t_ThreadAttached = false;
     static thread_local Il2CppThread* t_AttachedThread = nullptr;
+    
+    // Mutex for protecting static pointer caching
+    static std::mutex g_SDKMutex;
+    
+    // Safe memory read with exception handling
+    template<typename T>
+    bool SafeRead(void* address, T& outValue) {
+        if (!IsValidPtr(address)) return false;
+        __try {
+            outValue = *reinterpret_cast<T*>(address);
+            return true;
+        }
+        __except(EXCEPTION_EXECUTE_HANDLER) {
+            return false;
+        }
+    }
 
     bool Initialize() {
         if (g_Initialized) return true;
@@ -225,9 +241,11 @@ namespace sdk {
         void* GetPlayerCamera() {
             void* pm = GetPlayerManager();
             if (!pm) return nullptr;
+            
             static Il2CppField* camField = nullptr;
             if (!camField) camField = GetField((Il2CppClass*)g_PlayerManagerClass, "playerCam");
             if (!camField) return nullptr;
+            
             void* cam = nullptr;
             il2cpp_field_get_value(pm, camField, &cam);
             return cam;
@@ -506,30 +524,68 @@ namespace sdk {
         }
 
         Vector3 WorldToScreen(Vector3 worldPos) {
-            void* cam = GetMainCamera();
-            if (!cam) cam = GetPlayerCamera();
-            if (!cam) return {-10000, -10000, -1};
+            // Simple approach: get camera every frame but prefer player camera
+            void* playerCam = GetPlayerCamera();
+            void* mainCam = GetMainCamera();
+            
+            // Use player camera if available, otherwise main camera
+            void* cam = playerCam ? playerCam : mainCam;
+            
+            // Validate camera pointer
+            if (!cam || !IsValidPtr(cam)) return {-10000, -10000, -1};
 
-            Matrix4x4 view = GetViewMatrix(cam);
-            Matrix4x4 proj = GetProjectionMatrix(cam);
-            Matrix4x4 vp = Matrix4x4::Multiply(proj, view); // VP = P * V
+            // Get matrices with exception handling
+            Matrix4x4 view = {0};
+            Matrix4x4 proj = {0};
+            
+            __try {
+                view = GetViewMatrix(cam);
+                proj = GetProjectionMatrix(cam);
+            }
+            __except(EXCEPTION_EXECUTE_HANDLER) {
+                // Failed to get matrices
+                return {-10000, -10000, -1};
+            }
 
-            // Transform [x,y,z,1]
+            // Multiply projection and view matrices
+            Matrix4x4 vp = Matrix4x4::Multiply(proj, view);
+
+            // Transform world position to clip space
             float x = worldPos.x * vp(0, 0) + worldPos.y * vp(0, 1) + worldPos.z * vp(0, 2) + vp(0, 3);
             float y = worldPos.x * vp(1, 0) + worldPos.y * vp(1, 1) + worldPos.z * vp(1, 2) + vp(1, 3);
             float z = worldPos.x * vp(2, 0) + worldPos.y * vp(2, 1) + worldPos.z * vp(2, 2) + vp(2, 3);
             float w = worldPos.x * vp(3, 0) + worldPos.y * vp(3, 1) + worldPos.z * vp(3, 2) + vp(3, 3);
 
-            if (w < 0.1f) return {-10000, -10000, -1}; // Behind camera
+            // Check if point is behind camera
+            if (w < 0.01f) return {-10000, -10000, -1};
 
-            Vector3 screen = {x/w, y/w, z/w};
-            
-            // Convert NDC to Screen
-            ImGuiIO& io = ImGui::GetIO();
-            screen.x = (screen.x + 1.0f) * 0.5f * io.DisplaySize.x;
-            screen.y = (1.0f - screen.y) * 0.5f * io.DisplaySize.y; // Flip Y for ImGui
-            
-            return screen;
+            // Perspective divide
+            float invW = 1.0f / w;
+            float ndcX = x * invW;
+            float ndcY = y * invW;
+            float ndcZ = z * invW;
+
+            // Convert NDC to screen coordinates - validate ImGui is initialized
+            __try {
+                ImGuiIO& io = ImGui::GetIO();
+                
+                // Validate display size is reasonable
+                if (io.DisplaySize.x <= 0.0f || io.DisplaySize.y <= 0.0f) {
+                    return {-10000, -10000, -1};
+                }
+                
+                Vector3 screen = {
+                    (ndcX + 1.0f) * 0.5f * io.DisplaySize.x,
+                    (1.0f - ndcY) * 0.5f * io.DisplaySize.y,
+                    ndcZ
+                };
+                
+                return screen;
+            }
+            __except(EXCEPTION_EXECUTE_HANDLER) {
+                // ImGui not initialized or invalid IO state
+                return {-10000, -10000, -1};
+            }
         }
 
         // ===========================================

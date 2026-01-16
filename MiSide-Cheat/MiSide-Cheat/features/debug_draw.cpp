@@ -1,5 +1,6 @@
 #include "debug_draw.h"
 #include "../external/minhook/include/MinHook.h"
+#include "../sdk/sdk.h"
 #include <chrono>
 #include <unordered_map>
 
@@ -111,32 +112,48 @@ namespace debug_draw {
             return;
         }
 
-        // Get function addresses from IL2CPP
-        // Debug.DrawLine (RVA: 0x1911220 from dump.cs)
-        void* debugLineAddr = (void*)0x1801911220; // Adjust base address as needed
-        
-        // Debug.DrawRay (RVA: 0x1911480 from dump.cs)
-        void* debugRayAddr = (void*)0x1801911480; // Adjust base address as needed
+        // Get GameAssembly module base address
+        HMODULE hGameAssembly = GetModuleHandleA("GameAssembly.dll");
+        if (!hGameAssembly) {
+            // Cannot hook without game assembly
+            return;
+        }
 
-        // Note: These addresses might need adjustment based on the actual module base
-        // We'll need to get the module base address at runtime
-        
-        // For now, we'll skip the hook if addresses are invalid
-        // TODO: Implement proper address resolution using the dump addresses
-        
+        uintptr_t moduleBase = (uintptr_t)hGameAssembly;
+
+        // Get function addresses from IL2CPP (RVAs from dump.cs)
+        // Debug.DrawLine RVA: 0x1911220
+        // Debug.DrawRay RVA: 0x1911480
+        void* debugLineAddr = (void*)(moduleBase + 0x1911220);
+        void* debugRayAddr = (void*)(moduleBase + 0x1911480);
+
+        // Validate addresses before hooking
+        if (!sdk::IsValidPtr(debugLineAddr) || !sdk::IsValidPtr(debugRayAddr)) {
+            // Invalid addresses, don't hook
+            return;
+        }
+
+        bool anyHookSucceeded = false;
+
         // Attempt to hook Debug.DrawLine
         MH_STATUS status1 = MH_CreateHook(debugLineAddr, &hk_DebugLine, (LPVOID*)&original_DebugLine);
         if (status1 == MH_OK) {
-            MH_EnableHook(debugLineAddr);
+            status1 = MH_EnableHook(debugLineAddr);
+            if (status1 == MH_OK) {
+                anyHookSucceeded = true;
+            }
         }
 
         // Attempt to hook Debug.DrawRay
         MH_STATUS status2 = MH_CreateHook(debugRayAddr, &hk_DebugRay, (LPVOID*)&original_DebugRay);
         if (status2 == MH_OK) {
-            MH_EnableHook(debugRayAddr);
+            status2 = MH_EnableHook(debugRayAddr);
+            if (status2 == MH_OK) {
+                anyHookSucceeded = true;
+            }
         }
 
-        if (status1 == MH_OK || status2 == MH_OK) {
+        if (anyHookSucceeded) {
             hooks_enabled = true;
             stats.hook_active = true;
         }
@@ -150,11 +167,25 @@ namespace debug_draw {
             return;
         }
 
-        void* debugLineAddr = (void*)0x1801911220;
-        void* debugRayAddr = (void*)0x1801911480;
+        // Get GameAssembly module base address
+        HMODULE hGameAssembly = GetModuleHandleA("GameAssembly.dll");
+        if (!hGameAssembly) {
+            return;
+        }
 
-        MH_DisableHook(debugLineAddr);
-        MH_DisableHook(debugRayAddr);
+        uintptr_t moduleBase = (uintptr_t)hGameAssembly;
+
+        // Calculate addresses using RVAs
+        void* debugLineAddr = (void*)(moduleBase + 0x1911220);
+        void* debugRayAddr = (void*)(moduleBase + 0x1911480);
+
+        // Only disable if addresses are valid
+        if (sdk::IsValidPtr(debugLineAddr)) {
+            MH_DisableHook(debugLineAddr);
+        }
+        if (sdk::IsValidPtr(debugRayAddr)) {
+            MH_DisableHook(debugRayAddr);
+        }
 
         hooks_enabled = false;
         stats.hook_active = false;
