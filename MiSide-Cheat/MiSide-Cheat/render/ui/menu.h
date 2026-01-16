@@ -358,7 +358,26 @@ namespace ui {
             // Player
             BeginChild("Player Cheats", ImVec2(full_width, available_height));
             {
-                ImGui::TextDisabled("No player features available yet.");
+                // FOV Changer
+                CheckboxBind("FOV Changer", &config::g_config.misc.fov_changer);
+                if (config::g_config.misc.fov_changer.enabled) {
+                    ImGui::Indent();
+                    SliderFloat("Field of View", &config::g_config.misc.fov_value, 60.0f, 150.0f, "%.0f");
+                    ImGui::TextDisabled("Default: 90, Higher = wider view");
+                    ImGui::Unindent();
+                }
+
+                ImGui::Spacing();
+                ImGui::Spacing();
+
+                // Jump Power - Disabled (game uses kiriMoveBasic without jump)
+                ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+                ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+                Checkbox("Jump Power", &config::g_config.misc.jump_power.enabled);
+                ImGui::PopStyleVar();
+                ImGui::PopItemFlag();
+                ImGui::SameLine(0, 8);
+                ImGui::TextDisabled("(Not available - game doesn't support jumping)");
             }
             EndChild();
         }

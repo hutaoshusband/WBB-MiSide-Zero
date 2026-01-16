@@ -101,5 +101,10 @@ namespace features {
     void Shutdown();
     void OnTick();
     void OnRender();
+    
+    // ============================================================
+    // Crash Recovery
+    // ============================================================
+    void DisableUnstableFeatures();
 
 }

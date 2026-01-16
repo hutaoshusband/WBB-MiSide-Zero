@@ -214,6 +214,16 @@ namespace sdk {
         void SetGameObjectActive(void* gameObject, bool active);
 
         // ============================================================
+        // Player Modification
+        // ============================================================
+        void* GetPlayerCameraObject();
+        float GetCameraFOV(void* camera);
+        void SetCameraFOV(void* camera, float fov);
+        void* GetKiriMove();
+        float GetJumpHeight(void* kiriMove);
+        void SetJumpHeight(void* kiriMove, float height);
+
+        // ============================================================
         // DOTween / Path Prediction
         // ============================================================
         std::vector<void*> GetActiveTweens();

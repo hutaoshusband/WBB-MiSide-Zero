@@ -140,8 +140,10 @@ namespace hooks {
         
         HRESULT hr = oResizeBuffers(pSwapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
         
-        // Recreate render target after resize
-        render::CreateDeviceObjects();
+        // Only recreate render target if resize succeeded AND device/context are still valid
+        if (SUCCEEDED(hr) && core::g_pDevice && core::g_pContext) {
+            render::CreateDeviceObjects();
+        }
         
         return hr;
     }

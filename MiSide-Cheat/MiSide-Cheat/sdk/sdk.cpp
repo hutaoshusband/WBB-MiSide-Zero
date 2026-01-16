@@ -1168,6 +1168,107 @@ namespace sdk {
             
             return names;
         }
+
+        // ============================================================
+        // Player Modification - FOV & Jump
+        // ============================================================
+
+        void* GetPlayerCameraObject() {
+            // Get PlayerManager and access playerCam directly
+            void* pm = GetPlayerManager();
+            if (!pm || !IsValidPtr(pm)) {
+                return GetMainCamera(); // Fallback
+            }
+
+            // PlayerManager.playerCam is at offset 0x28
+            __try {
+                void* cam = *(void**)((uintptr_t)pm + 0x28);
+                if (cam && IsValidPtr(cam)) {
+                    return cam;
+                }
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER) {
+                // Fall through to fallback
+            }
+
+            return GetMainCamera();
+        }
+
+        float GetCameraFOV(void* camera) {
+            if (!camera || !IsValidPtr(camera)) return 0.0f;
+
+            // Use il2cpp_resolve_icall for Camera::get_fieldOfView
+            if (!il2cpp_resolve_icall) {
+                il2cpp_resolve_icall = (t_il2cpp_resolve_icall)GetProcAddress(GetModuleHandleA("GameAssembly.dll"), "il2cpp_resolve_icall");
+            }
+            if (!il2cpp_resolve_icall) return 0.0f;
+
+            static float (*get_fov)(void*) = nullptr;
+            if (!get_fov) {
+                get_fov = (float (*)(void*))il2cpp_resolve_icall("UnityEngine.Camera::get_fieldOfView");
+            }
+            if (!get_fov) return 0.0f;
+
+            __try {
+                return get_fov(camera);
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER) {
+                return 0.0f;
+            }
+        }
+
+        void SetCameraFOV(void* camera, float fov) {
+            if (!camera || !IsValidPtr(camera)) return;
+
+            // Use il2cpp_resolve_icall for Camera::set_fieldOfView
+            if (!il2cpp_resolve_icall) {
+                il2cpp_resolve_icall = (t_il2cpp_resolve_icall)GetProcAddress(GetModuleHandleA("GameAssembly.dll"), "il2cpp_resolve_icall");
+            }
+            if (!il2cpp_resolve_icall) return;
+
+            static void (*set_fov)(void*, float) = nullptr;
+            if (!set_fov) {
+                set_fov = (void (*)(void*, float))il2cpp_resolve_icall("UnityEngine.Camera::set_fieldOfView");
+            }
+            if (!set_fov) return;
+
+            __try {
+                set_fov(camera, fov);
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER) {
+                // Ignore errors
+            }
+        }
+
+        void* GetKiriMove() {
+            // Game uses kiriMoveBasic via PlayerManager.move at offset 0x58
+            void* pm = GetPlayerManager();
+            if (!pm || !IsValidPtr(pm)) return nullptr;
+
+            __try {
+                void* move = *(void**)((uintptr_t)pm + 0x58);
+                if (move && IsValidPtr(move)) {
+                    return move;
+                }
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER) {
+                return nullptr;
+            }
+
+            return nullptr;
+        }
+
+        float GetJumpHeight(void* kiriMove) {
+            // kiriMoveBasic has NO jumping - return 0
+            return 0.0f;
+        }
+
+        void SetJumpHeight(void* kiriMove, float height) {
+            // kiriMoveBasic has NO jumping - do nothing
+            // The game uses kiriMoveBasic which doesn't support jumping
+            return;
+        }
+
 // Namespaces continued
         // ===========================================
         // DOTween IMPLEMENTATION

@@ -127,11 +127,19 @@ namespace core {
         __except(EXCEPTION_EXECUTE_HANDLER) {
             static int crashCount = 0;
             crashCount++;
-            WriteCrashLog("SEH Exception in OnTick", GetExceptionCode(), nullptr);
             
-            // If crashing too much, disable features
-            if (crashCount > 10) {
-                WriteCrashLog("Too many OnTick crashes - features may be unstable");
+            DWORD exceptionCode = GetExceptionCode();
+            WriteCrashLog("SEH Exception in OnTick", exceptionCode, nullptr);
+            
+            // If crashing too much, DISABLE unstable features to prevent cascade failures
+            if (crashCount > 5) {
+                WriteCrashLog("Too many OnTick crashes - DISABLING UNSTABLE FEATURES");
+                
+                // Disable features that are causing crashes
+                features::DisableUnstableFeatures();
+                
+                // Reset crash count after disabling features
+                crashCount = 0;
             }
         }
     }
@@ -177,4 +185,3 @@ namespace core {
         return 0;
     }
 }
-

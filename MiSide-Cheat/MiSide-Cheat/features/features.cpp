@@ -85,6 +85,24 @@ static void ExpandBounds(const sdk::Vector3& p, float& minX, float& maxX, float&
         // Cleanup all features
     }
     
+    // Called by core when crashes are detected - disables unstable features
+    void DisableUnstableFeatures() {
+        // Disable features that commonly cause crashes
+        // Keep basic features enabled (like menu)
+        config::g_config.visuals.esp.enabled = false;
+        config::g_config.visuals.chams.enabled = false;
+        config::g_config.aimbot.aimbot.enabled = false;
+        config::g_config.misc.speed_hack.enabled = false;
+        config::g_config.misc.fly_hack.enabled = false;
+        config::g_config.misc.no_clip.enabled = false;
+        config::g_config.misc.mita_speed_enabled = false;
+        config::g_config.misc.debug_draw_hooks = false;
+        config::g_config.misc.debug_draw_render = false;
+        
+        // Disable debug draw hooks if active
+        debug_draw::DisableHooks();
+    }
+    
     void OnTick() {
         // Called every frame - update all enabled features
         // Ensure SDK is initialized even if Initialize() wasn't called (e.g. reload)
@@ -162,11 +180,11 @@ static void ExpandBounds(const sdk::Vector3& p, float& minX, float& maxX, float&
             if (config::g_config.misc.mita_speed_enabled) {
                 agent = sdk::game::GetMitaNavMeshAgent();
                 animator = sdk::game::GetMitaAnimator();
-                
+
                 if (animator) {
                     sdk::game::SetAnimatorApplyRootMotion(animator, false);
                 }
-                
+
                 if (agent) {
                     // Save original speed once
                     if (saved_mita_speed < 0.0f) {
@@ -174,11 +192,11 @@ static void ExpandBounds(const sdk::Vector3& p, float& minX, float& maxX, float&
                          if (currentSpeed > 0.1f) saved_mita_speed = currentSpeed;
                          else saved_mita_speed = 3.5f; // Default fallback
                     }
-                    
+
                     // Apply speed
                     sdk::game::SetAgentSpeed(agent, config::g_config.misc.mita_speed);
                     // Also boost acceleration to match speed increase
-                    sdk::game::SetAgentAcceleration(agent, 99999.0f); 
+                    sdk::game::SetAgentAcceleration(agent, 99999.0f);
                 }
             } else {
                 // Restore logic
@@ -194,6 +212,33 @@ static void ExpandBounds(const sdk::Vector3& p, float& minX, float& maxX, float&
                      saved_mita_speed = -1.0f;
                 }
             }
+
+            // Player Modification - FOV Changer
+            static float saved_fov = -1.0f;
+            if (config::g_config.misc.fov_changer.IsActive()) {
+                void* cam = sdk::game::GetPlayerCameraObject();
+                if (cam) {
+                    // Save original FOV once
+                    if (saved_fov < 0.0f) {
+                        float current = sdk::game::GetCameraFOV(cam);
+                        if (current > 0.1f) saved_fov = current;
+                        else saved_fov = 90.0f; // Default fallback
+                    }
+                    sdk::game::SetCameraFOV(cam, config::g_config.misc.fov_value);
+                }
+            } else {
+                // Restore original FOV
+                if (saved_fov > 0.0f) {
+                    void* cam = sdk::game::GetPlayerCameraObject();
+                    if (cam) {
+                        sdk::game::SetCameraFOV(cam, saved_fov);
+                    }
+                    saved_fov = -1.0f;
+                }
+            }
+
+            // Jump Power - Game uses kiriMoveBasic which doesn't have jumping
+            // This feature is disabled in UI
 
             // Chams
             chams::OnTick();
@@ -220,12 +265,11 @@ static void ExpandBounds(const sdk::Vector3& p, float& minX, float& maxX, float&
     void OnRender() {
         // Called during render - for overlay drawing
         
-        // Ensure this thread is attached to IL2CPP (render thread is different from main thread)
-        static bool renderThreadAttached = false;
-        if (!renderThreadAttached && sdk::IsReady()) {
-            sdk::AttachCurrentThread();
-            renderThreadAttached = true;
-        }
+        // CRITICAL: Do NOT attach this thread to IL2CPP!
+        // The render thread should NOT be attached to IL2CPP runtime.
+        // IL2CPP operations should only happen from the main thread (OnTick).
+        // The main thread is already attached in core::MainThread().
+        // Attaching from render thread causes "Fatal error in GC: Collecting from unknown thread"
 
         // Path Prediction
         RenderPathPrediction();

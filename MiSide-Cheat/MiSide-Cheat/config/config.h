@@ -90,17 +90,24 @@ namespace config {
         // Player
         Bind speed_hack;
         float speed_multiplier = 1.5f;
-        
+
         Bind fly_hack;
         float fly_speed = 10.0f;
-        
+
         Bind no_clip;
-        
+
+        // Player Modification
+        Bind fov_changer;
+        float fov_value = 90.0f;
+
+        Bind jump_power;
+        float jump_multiplier = 2.0f;
+
         // Game
         Bind infinite_stamina;
         Bind god_mode;
         Bind infinite_ammo;
-        
+
         // Teleport
         Bind teleport;
 
