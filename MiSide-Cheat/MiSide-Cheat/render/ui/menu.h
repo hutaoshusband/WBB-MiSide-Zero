@@ -210,7 +210,22 @@ namespace ui {
                     ImGui::Unindent();
                 }
                 
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+
+                Checkbox("Collectibles ESP", &config::g_config.visuals.esp_collectibles);
+                if (config::g_config.visuals.esp_collectibles) {
+                    ImGui::Indent();
+                    Checkbox("Cards", &config::g_config.visuals.esp_col_cards);
+                    Checkbox("Cassettes", &config::g_config.visuals.esp_col_cassettes);
+                    Checkbox("Coins", &config::g_config.visuals.esp_col_coins);
+                    ImGui::Unindent();
+                }
+                
+                ImGui::Spacing();
                 Separator();
+                ImGui::Spacing();
                 ImGui::Text("ESP Colors");
                 ColorPicker("##boxcol", config::g_config.visuals.esp_box_color);
             }

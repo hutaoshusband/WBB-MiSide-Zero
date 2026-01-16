@@ -2,70 +2,70 @@
 #include "../sdk/sdk.h"
 #include "../config/config.h"
 #include <imgui.h>
-#include <vector>
 
 namespace features {
-    namespace path_prediction {
+
+    void RenderPathPrediction() {
+        if (!config::g_config.visuals.path_prediction) return;
+
+        // Path prediction for Rigidbody objects (Projectiles)
+        // We scan for Rigidbodies that are moving
         
-        void OnRender() {
-            // Check if feature is enabled
-            if (!config::g_config.visuals.path_prediction) return;
+        // Since iterating all rigidbodies is expensive, we might want to cache or optimize.
+        // For now, let's try finding objects of type "Rigidbody"
+        // But "Rigidbody" is a Component. FindObjectsOfTypeAll handles Components too usually if we ask for the Type.
+        
+        std::vector<void*> rigidbodies = sdk::game::FindObjectsOfTypeAll("UnityEngine.Rigidbody");
+        
+        ImDrawList* drawList = ImGui::GetBackgroundDrawList();
+
+        for (void* rb : rigidbodies) {
+            if (!rb) continue;
             
-            // Check if SDK is ready
-            if (!sdk::IsReady()) return;
+            // Filter out static or sleeping bodies
+            // We need a way to check if it's sleeping or kinematic? 
+            // For now just check velocity.
+            
+            sdk::Vector3 velocity = sdk::game::GetRigidbodyVelocity(rb);
+            if (velocity.x == 0 && velocity.y == 0 && velocity.z == 0) continue;
+            
+            // Check magnitude to filter noise
+            float speed = sqrt(velocity.x*velocity.x + velocity.y*velocity.y + velocity.z*velocity.z);
+            if (speed < 0.1f) continue;
 
-            // Get active tweens
-            // Note: This iterates the TweenManager logic we implemented in SDK
-            std::vector<void*> tweens = sdk::game::GetActiveTweens();
-            if (tweens.empty()) return;
-
-            ImDrawList* draw = ImGui::GetForegroundDrawList();
-
-            for (void* tween : tweens) {
-                if (!tween) continue;
+            // Get Position
+            // Rigidbody is a Component, so we can use GetPosition(rb) which calls GetComponent<Transform>().position
+            sdk::Vector3 startPos = sdk::game::GetPosition(rb);
+            
+            // Simulate path
+            // P_t = P_0 + V*t + 0.5*G*t^2
+            // Let's draw for 2 seconds
+            
+            sdk::Vector3 currentPos = startPos;
+            sdk::Vector3 g = { 0, -9.81f, 0 }; // Gravity
+            float timeStep = 0.1f;
+            
+            for (float t = 0; t < 2.0f; t += timeStep) {
+                // Future position at t + timeStep
+                float futureT = t + timeStep;
                 
-                // Try to extract path points from this tween
-                // This will fail (return empty) for non-path tweens, effectively filtering them
-                std::vector<sdk::Vector3> points = sdk::game::GetTweenPathPoints(tween);
-                if (points.size() < 2) continue;
-
-                // Draw the path
-                // We draw lines connecting the points
-                for (size_t i = 0; i < points.size() - 1; i++) {
-                     sdk::Vector3 p1 = points[i];
-                     sdk::Vector3 p2 = points[i+1];
-                     
-                     sdk::Vector3 s1 = sdk::game::WorldToScreen(p1);
-                     sdk::Vector3 s2 = sdk::game::WorldToScreen(p2);
-                     
-                     // Check visibility (simple Z check)
-                     if (s1.z > 0 && s2.z > 0) {
-                         // Draw line segment
-                         draw->AddLine(ImVec2(s1.x, s1.y), ImVec2(s2.x, s2.y), ImColor(0, 255, 255, 200), 2.0f);
-                     }
-                     
-                     // Draw point marker
-                     if (s1.z > 0) {
-                         draw->AddCircleFilled(ImVec2(s1.x, s1.y), 3.0f, ImColor(255, 255, 0, 200));
-                         
-                         // Optional: Numbering
-                         // char buf[16]; sprintf(buf, "%d", (int)i);
-                         // draw->AddText(ImVec2(s1.x, s1.y), ImColor(255,255,255), buf);
-                     }
+                // Simple integration: P = P0 + V*t + 0.5*G*t^2
+                // We restart from P0 for better accuracy (analytical solution) rather than iterative Euler
+                
+                sdk::Vector3 futurePos;
+                futurePos.x = startPos.x + velocity.x * futureT + 0.5f * g.x * futureT * futureT;
+                futurePos.y = startPos.y + velocity.y * futureT + 0.5f * g.y * futureT * futureT;
+                futurePos.z = startPos.z + velocity.z * futureT + 0.5f * g.z * futureT * futureT;
+                
+                // Draw Line
+                sdk::Vector3 s1 = sdk::game::WorldToScreen(currentPos);
+                sdk::Vector3 s2 = sdk::game::WorldToScreen(futurePos);
+                
+                if (s1.z > 0 && s2.z > 0) {
+                    drawList->AddLine({s1.x, s1.y}, {s2.x, s2.y}, IM_COL32(0, 255, 255, 255), 2.0f);
                 }
                 
-                // Draw last point distinctively
-                if (!points.empty()) {
-                    sdk::Vector3 end = points.back();
-                    sdk::Vector3 sEnd = sdk::game::WorldToScreen(end);
-                    if (sEnd.z > 0) {
-                        draw->AddCircleFilled(ImVec2(sEnd.x, sEnd.y), 5.0f, ImColor(255, 0, 0, 255));
-                        draw->AddText(ImVec2(sEnd.x + 8, sEnd.y - 4), ImColor(255, 255, 255, 255), "End");
-                    }
-                }
-                
-                // Only draw first few paths to avoid clutter? 
-                // No, draw all found.
+                currentPos = futurePos;
             }
         }
     }

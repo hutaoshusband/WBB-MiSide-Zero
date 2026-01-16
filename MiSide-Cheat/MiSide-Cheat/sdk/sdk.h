@@ -217,5 +217,13 @@ namespace sdk {
         // ============================================================
         std::vector<void*> GetActiveTweens();
         std::vector<Vector3> GetTweenPathPoints(void* tween);
+
+        // Physics Prediction
+        Vector3 GetRigidbodyVelocity(void* rb);
+        
+        // Object Finding / Utils
+        std::vector<void*> FindObjectsOfTypeAll(const char* className);
+        const char* GetObjectName(void* object);
+        const char* GetLayerName(int layer);
     }
 }

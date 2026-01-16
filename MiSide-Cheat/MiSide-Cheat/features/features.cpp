@@ -2,6 +2,7 @@
 #include "chams.h"
 #include "debug_draw.h"
 #include "path_prediction.h"
+#include "collectibles.h"
 #include "../config/config.h"
 #include <imgui.h>
 #include <algorithm>
@@ -19,7 +20,9 @@ static void ExpandBounds(const sdk::Vector3& p, float& minX, float& maxX, float&
         if (p.y > maxY) maxY = p.y;
     }
 }
-    
+
+// ... (existing code helpers)
+
     // ============================================================
     // Get all modules for display in the module list and menu
     // This is where we register all our features
@@ -31,6 +34,7 @@ static void ExpandBounds(const sdk::Vector3& p, float& minX, float& maxX, float&
         modules.push_back({ "ESP",           "Visuals",  &config::g_config.visuals.esp.enabled });
         modules.push_back({ "Chams",         "Visuals",  &config::g_config.visuals.chams.enabled });
         modules.push_back({ "Path Predict",  "Visuals",  &config::g_config.visuals.path_prediction });
+        modules.push_back({ "Collectibles",  "Visuals",  &config::g_config.visuals.esp_collectibles });
         
         // Aimbot
         modules.push_back({ "Aimbot",        "Aimbot",   &config::g_config.aimbot.aimbot.enabled });
@@ -46,7 +50,7 @@ static void ExpandBounds(const sdk::Vector3& p, float& minX, float& maxX, float&
         
         return modules;
     }
-    
+
     std::vector<ModuleInfo> GetEnabledModules() {
         std::vector<ModuleInfo> enabled;
         auto all = GetAllModules();
@@ -212,7 +216,7 @@ static void ExpandBounds(const sdk::Vector3& p, float& minX, float& maxX, float&
         // World Features
         // config::g_config.visuals.fullbright.IsActive() ...
     }
-    
+
     void OnRender() {
         // Called during render - for overlay drawing
         
@@ -224,7 +228,8 @@ static void ExpandBounds(const sdk::Vector3& p, float& minX, float& maxX, float&
         }
 
         // Path Prediction
-        path_prediction::OnRender();
+        RenderPathPrediction();
+        RenderCollectiblesESP();
         
         if (config::g_config.misc.debug_view) {
             ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);

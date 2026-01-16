@@ -1,7 +1,6 @@
 #pragma once
+#include "../sdk/sdk.h"
 
 namespace features {
-    namespace path_prediction {
-        void OnRender();
-    }
+    void RenderPathPrediction();
 }

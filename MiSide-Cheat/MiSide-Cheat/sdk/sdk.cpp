@@ -1284,5 +1284,111 @@ namespace sdk {
             return points;
         }
 
+
+        // ===========================================
+        // NEW ADDITIONS
+        // ===========================================
+
+        Vector3 GetRigidbodyVelocity(void* rb) {
+            if (!rb) return {0,0,0};
+            static Il2CppClass* rbClass = nullptr;
+            if (!rbClass) rbClass = GetClass("UnityEngine", "Rigidbody");
+            
+            static Il2CppMethod* getVel = nullptr;
+            if (!getVel) getVel = GetMethod(rbClass, "get_velocity", 0);
+            
+            Vector3 res = {0,0,0};
+            if (getVel) {
+                void* ret = RuntimeInvoke(getVel, rb, nullptr, nullptr);
+                if (ret) {
+                    res = *(Vector3*)((char*)ret + 0x10);
+                }
+            }
+            return res;
+        }
+
+        std::vector<void*> FindObjectsOfTypeAll(const char* className) {
+             std::vector<void*> results;
+             Il2CppClass* targetClass = GetClass("", className);
+             if (!targetClass) targetClass = GetClass("UnityEngine", className); // Try UnityEngine namespace
+             if (!targetClass) return results;
+
+             void* systemType = GetSystemType(targetClass);
+             if (!systemType) return results;
+             
+             static Il2CppClass* objectClass = nullptr;
+             if (!objectClass) objectClass = GetClass("UnityEngine", "Object");
+             
+             static Il2CppMethod* findAll = nullptr;
+             if (!findAll) findAll = GetMethod(objectClass, "FindObjectsOfType", 1); // (Type) -> Object[]
+             
+             if (!findAll) return results;
+             
+             void* params[1] = { systemType };
+             void* arrayObj = RuntimeInvoke(findAll, nullptr, params, nullptr);
+             
+             if (!arrayObj) return results;
+             
+             // Array layout: 
+             // 0x18: bounds?
+             // 0x20: data items? 
+             // Actually, Il2CppArray has length at 0x18, items start at 0x20 usually (x64).
+             
+             uint32_t length = *(uint32_t*)((char*)arrayObj + 0x18);
+             void** items = (void**)((char*)arrayObj + 0x20);
+             
+             // Validate length
+             if (length > 10000) length = 10000;
+
+             for (uint32_t i = 0; i < length; i++) {
+                 if (items[i]) results.push_back(items[i]);
+             }
+             
+             return results;
+        }
+
+        const char* GetObjectName(void* object) {
+            if (!object) return "null";
+            static Il2CppClass* objectClass = nullptr;
+            if (!objectClass) objectClass = GetClass("UnityEngine", "Object");
+            
+            static Il2CppMethod* getName = nullptr;
+            if (!getName) getName = GetMethod(objectClass, "get_name", 0);
+            
+            void* strObj = RuntimeInvoke(getName, object, nullptr, nullptr);
+            if (!strObj) return "null";
+            
+            // Il2CppString: length at 0x10, chars at 0x14 (UTF-16)
+            int length = *(int*)((char*)strObj + 0x10);
+            wchar_t* chars = (wchar_t*)((char*)strObj + 0x14);
+            
+            static char buffer[256];
+            WideCharToMultiByte(CP_UTF8, 0, chars, length, buffer, sizeof(buffer)-1, NULL, NULL);
+            buffer[length < 255 ? length : 255] = 0;
+            
+            return buffer;
+        }
+        
+        const char* GetLayerName(int layer) {
+             // UnityEngine.LayerMask.LayerToName(int)
+             static Il2CppClass* layerMaskClass = nullptr;
+             if (!layerMaskClass) layerMaskClass = GetClass("UnityEngine", "LayerMask");
+             
+             static Il2CppMethod* layerToName = nullptr;
+             if (!layerToName) layerToName = GetMethod(layerMaskClass, "LayerToName", 1);
+             
+             void* args[1] = { &layer };
+             void* strObj = RuntimeInvoke(layerToName, nullptr, args, nullptr);
+             if (!strObj) return "Unknown";
+             
+             int length = *(int*)((char*)strObj + 0x10);
+             wchar_t* chars = (wchar_t*)((char*)strObj + 0x14);
+             
+             static char buffer[64];
+             WideCharToMultiByte(CP_UTF8, 0, chars, length, buffer, sizeof(buffer)-1, NULL, NULL);
+             buffer[length < 63 ? length : 63] = 0;
+             return buffer;
+        }
+
     } // namespace game
 } // namespace sdk

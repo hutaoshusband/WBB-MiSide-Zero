@@ -106,6 +106,7 @@
     <ClInclude Include="features\chams.h" />
     <ClInclude Include="features\debug_draw.h" />
     <ClInclude Include="features\path_prediction.h" />
+    <ClInclude Include="features\collectibles.h" />
     <!-- ImGui -->
     <ClInclude Include="external\imgui\imgui.h" />
     <ClInclude Include="external\imgui\imgui_internal.h" />
@@ -143,6 +144,7 @@
     <ClCompile Include="sdk\sdk.cpp" />
     <ClCompile Include="config\config.cpp" />
     <ClCompile Include="features\path_prediction.cpp" />
+    <ClCompile Include="features\collectibles.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

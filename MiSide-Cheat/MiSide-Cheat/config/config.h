@@ -57,6 +57,10 @@ namespace config {
         // Re-mapping for old feature naming
         bool esp_enabled = false; // Legacy, will be kept for compatibility if needed
         bool path_prediction = false;
+        bool esp_collectibles = false;
+        bool esp_col_cards = true;
+        bool esp_col_cassettes = true;
+        bool esp_col_coins = true;
     };
     
     // ============================================================
