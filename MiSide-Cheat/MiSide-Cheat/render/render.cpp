@@ -144,9 +144,10 @@ namespace render {
             return;
         }
         
-        // Always render watermark/module list overlay
+        // Always render watermark/module list/keybind list overlay
         ui::RenderWatermark();
         ui::RenderModuleList();
+        ui::RenderKeybindList();
         
         // Render menu if open
         // Render menu if open

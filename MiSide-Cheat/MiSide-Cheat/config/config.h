@@ -26,6 +26,7 @@ namespace config {
         float accent_color[4] = { 0.584f, 0.722f, 0.024f, 1.0f };  // Lime green
         bool show_watermark = true;
         bool show_module_list = true;
+        bool show_keybind_list = true;
     };
     
     // ============================================================

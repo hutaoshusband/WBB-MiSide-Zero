@@ -29,6 +29,12 @@ namespace ui {
     // Logo texture
     inline ID3D11ShaderResourceView* g_pLogoTexture = nullptr;
     inline bool g_bLogoLoaded = false;
+
+    // Keybind list position (movable when menu is open)
+    inline ImVec2 g_vecKeybindListPos = ImVec2(0, 0);
+    inline bool g_bKeybindListPosInitialized = false;
+    inline bool g_bKeybindListDragging = false;
+    inline ImVec2 g_vecKeybindListDragOffset = ImVec2(0, 0);
     
     // ============================================================
     // Navbar for subtabs (horizontal row of smaller tabs)
@@ -125,41 +131,197 @@ namespace ui {
     // ============================================================
     inline void RenderModuleList() {
         if (!config::g_config.menu.show_module_list) return;
-        
+
         auto enabled_modules = features::GetEnabledModules();
         if (enabled_modules.empty()) return;
-        
+
         ImGuiIO& io = ImGui::GetIO();
         ImDrawList* draw = ImGui::GetForegroundDrawList();
-        
+
         const float PADDING_X = 8.0f;
         const float LINE_HEIGHT = 18.0f;
         const float RIGHT_MARGIN = 5.0f;
-        
+
         float y_pos = 45.0f;
-        
+
         for (const auto& mod : enabled_modules) {
             ImVec2 text_size = ImGui::CalcTextSize(mod.name);
             float x_pos = io.DisplaySize.x - text_size.x - PADDING_X * 2 - RIGHT_MARGIN;
-            
+
             ImVec2 bg_start = ImVec2(x_pos, y_pos);
             ImVec2 bg_end = ImVec2(io.DisplaySize.x - RIGHT_MARGIN, y_pos + LINE_HEIGHT);
-            
+
             ImU32 bg_left = ImColor(20, 20, 25, 200);
             ImU32 bg_right = ImColor(30, 30, 35, 220);
             draw->AddRectFilledMultiColor(bg_start, bg_end, bg_left, bg_right, bg_right, bg_left);
-            
+
             draw->AddRectFilled(
                 ImVec2(io.DisplaySize.x - RIGHT_MARGIN - 2, y_pos),
                 ImVec2(io.DisplaySize.x - RIGHT_MARGIN, y_pos + LINE_HEIGHT),
                 accent_color
             );
-            
+
             ImVec2 text_pos = ImVec2(x_pos + PADDING_X, y_pos + (LINE_HEIGHT - text_size.y) / 2);
             draw->AddText(ImVec2(text_pos.x + 1, text_pos.y + 1), ImColor(0, 0, 0, 150), mod.name);
             draw->AddText(text_pos, ImColor(255, 255, 255), mod.name);
-            
+
             y_pos += LINE_HEIGHT + 1;
+        }
+    }
+
+    // ============================================================
+    // Render Keybind List
+    // ============================================================
+    inline void RenderKeybindList() {
+        if (!config::g_config.menu.show_keybind_list) return;
+
+        // Structure for active keybinds
+        struct KeybindInfo {
+            const char* name;
+            bool* enabled_ptr;
+            int key;
+            int mode;
+        };
+
+        std::vector<KeybindInfo> active_binds;
+
+        // Helper to check and add keybinds
+        auto check_bind = [&](const char* name, config::Bind* bind) {
+            if (bind->enabled && bind->IsActive()) {
+                // Show if it has a key OR is in "Always On" mode
+                if (bind->key != 0 || bind->mode == 2) {
+                    active_binds.push_back({ name, &bind->enabled, bind->key, bind->mode });
+                }
+            }
+        };
+
+        // Check all keybinds from config
+        check_bind("ESP", &config::g_config.visuals.esp);
+        check_bind("Chams", &config::g_config.visuals.chams);
+        check_bind("Fullbright", &config::g_config.visuals.fullbright);
+        check_bind("No Fog", &config::g_config.visuals.no_fog);
+        check_bind("Crosshair", &config::g_config.visuals.crosshair);
+        check_bind("Aimbot", &config::g_config.aimbot.aimbot);
+        check_bind("Speed Hack", &config::g_config.misc.speed_hack);
+        check_bind("Fly Hack", &config::g_config.misc.fly_hack);
+        check_bind("NoClip", &config::g_config.misc.no_clip);
+        check_bind("FOV Changer", &config::g_config.misc.fov_changer);
+        check_bind("Jump Power", &config::g_config.misc.jump_power);
+        check_bind("Infinite Stamina", &config::g_config.misc.infinite_stamina);
+        check_bind("God Mode", &config::g_config.misc.god_mode);
+        check_bind("Infinite Ammo", &config::g_config.misc.infinite_ammo);
+        check_bind("Teleport", &config::g_config.misc.teleport);
+
+        // Don't show if no active binds
+        if (active_binds.empty())
+            return;
+
+        // Constants
+        const float PADDING = 10.0f;
+        const float ITEM_HEIGHT = 20.0f;
+        const float HEADER_HEIGHT = 26.0f;
+        const float RIGHT_MARGIN = 5.0f;
+
+        // Calculate size
+        float max_width = 150.0f;
+        for (const auto& bind : active_binds) {
+            ImVec2 name_size = ImGui::CalcTextSize(bind.name);
+            const char* mode_text = bind.mode == 0 ? "[hold]" : (bind.mode == 1 ? "[toggle]" : "[on]");
+            ImVec2 mode_size = ImGui::CalcTextSize(mode_text);
+            float w = name_size.x + mode_size.x + PADDING * 3;
+            if (w > max_width) max_width = w;
+        }
+
+        float total_height = HEADER_HEIGHT + (ITEM_HEIGHT * active_binds.size()) + PADDING * 2;
+        ImVec2 size = ImVec2(max_width, total_height);
+
+        ImGuiIO& io = ImGui::GetIO();
+        bool menu_open = render::menu::IsOpen();
+
+        // Initialize position on first run
+        if (!g_bKeybindListPosInitialized) {
+            float module_list_height = 0.0f;
+            if (config::g_config.menu.show_module_list) {
+                auto enabled_modules = features::GetEnabledModules();
+                if (!enabled_modules.empty()) {
+                    module_list_height = 45.0f + (enabled_modules.size() * 19.0f);
+                }
+            }
+            g_vecKeybindListPos = ImVec2(io.DisplaySize.x - max_width - RIGHT_MARGIN, 35.0f + module_list_height + 5.0f);
+            g_bKeybindListPosInitialized = true;
+        }
+
+        ImDrawList* draw = ImGui::GetForegroundDrawList();
+        ImVec2 pos = g_vecKeybindListPos;
+
+        // Handle dragging when menu is open
+        if (menu_open) {
+            ImVec2 mouse_pos = io.MousePos;
+            bool mouse_over_header = (mouse_pos.x >= pos.x && mouse_pos.x <= pos.x + size.x &&
+                                      mouse_pos.y >= pos.y && mouse_pos.y <= pos.y + HEADER_HEIGHT);
+
+            // Start dragging
+            if (mouse_over_header && ImGui::IsMouseClicked(0)) {
+                g_bKeybindListDragging = true;
+                g_vecKeybindListDragOffset = ImVec2(mouse_pos.x - pos.x, mouse_pos.y - pos.y);
+            }
+
+            // Stop dragging
+            if (ImGui::IsMouseReleased(0)) {
+                g_bKeybindListDragging = false;
+            }
+
+            // Update position while dragging
+            if (g_bKeybindListDragging) {
+                g_vecKeybindListPos = ImVec2(mouse_pos.x - g_vecKeybindListDragOffset.x,
+                                              mouse_pos.y - g_vecKeybindListDragOffset.y);
+                pos = g_vecKeybindListPos;
+            }
+
+            // Change cursor when hovering over header
+            if (mouse_over_header && !g_bKeybindListDragging) {
+                ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            }
+        }
+
+        // Background
+        draw->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + size.y),
+            ImColor(25, 25, 30, 240), 6.0f);
+
+        // Border
+        draw->AddRect(pos, ImVec2(pos.x + size.x, pos.y + size.y),
+            accent_color, 6.0f, 0, 1.5f);
+
+        // Header
+        draw->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + HEADER_HEIGHT),
+            ImColor(35, 35, 40, 255), 6.0f, ImDrawFlags_RoundCornersTop);
+
+        // Header text
+        ImVec2 text_size = ImGui::CalcTextSize("Keybinds");
+        draw->AddText(ImVec2(pos.x + (size.x - text_size.x) / 2, pos.y + 5),
+            ImColor(255, 255, 255), "Keybinds");
+
+        // Items
+        float y_offset = HEADER_HEIGHT + PADDING;
+        for (const auto& bind : active_binds) {
+            const char* mode_text = bind.mode == 0 ? "[hold]" : (bind.mode == 1 ? "[toggle]" : "[on]");
+
+            ImVec2 name_size = ImGui::CalcTextSize(bind.name);
+            ImVec2 mode_size = ImGui::CalcTextSize(mode_text);
+
+            float x = pos.x + PADDING;
+            float y = pos.y + y_offset;
+
+            // Name
+            draw->AddText(ImVec2(x + 1, y + 1), ImColor(0, 0, 0, 150), bind.name);
+            draw->AddText(ImVec2(x, y), ImColor(255, 255, 255), bind.name);
+
+            // Mode
+            float mode_x = pos.x + size.x - mode_size.x - PADDING;
+            draw->AddText(ImVec2(mode_x + 1, y + 1), ImColor(0, 0, 0, 150), mode_text);
+            draw->AddText(ImVec2(mode_x, y), accent_color, mode_text);
+
+            y_offset += ITEM_HEIGHT;
         }
     }
     
@@ -603,6 +765,7 @@ namespace ui {
             Separator();
             Checkbox("Show Watermark", &config::g_config.menu.show_watermark);
             Checkbox("Show Module List", &config::g_config.menu.show_module_list);
+            Checkbox("Show Keybind List", &config::g_config.menu.show_keybind_list);
             
             Separator();
             ImGui::Text("Accent Color");

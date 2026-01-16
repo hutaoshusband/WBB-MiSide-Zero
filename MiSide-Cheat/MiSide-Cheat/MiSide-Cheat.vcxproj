@@ -27,7 +27,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
+    <PlatformToolset>ClangCL</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -66,7 +66,7 @@
   <!-- Release x64 -->
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>false</SDLCheck>
@@ -79,7 +79,7 @@
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <Optimization>MaxSpeed</Optimization>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <ExceptionHandling>false</ExceptionHandling>
+      <ExceptionHandling>Sync</ExceptionHandling>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -107,6 +107,9 @@
     <ClInclude Include="features\debug_draw.h" />
     <ClInclude Include="features\path_prediction.h" />
     <ClInclude Include="features\collectibles.h" />
+    <ClInclude Include="features\game_cache.h" />
+    <ClInclude Include="features\esp.h" />
+    <ClInclude Include="features\debug_view.h" />
     <!-- ImGui -->
     <ClInclude Include="external\imgui\imgui.h" />
     <ClInclude Include="external\imgui\imgui_internal.h" />
@@ -145,6 +148,9 @@
     <ClCompile Include="config\config.cpp" />
     <ClCompile Include="features\path_prediction.cpp" />
     <ClCompile Include="features\collectibles.cpp" />
+    <ClCompile Include="features\game_cache.cpp" />
+    <ClCompile Include="features\esp.cpp" />
+    <ClCompile Include="features\debug_view.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -262,16 +262,29 @@ namespace sdk {
 
         void* GetPlayerMovement() {
             void* pm = GetPlayerManager();
-            if (!pm || !IsValidPtr(pm)) return nullptr;
+            if (!pm || !IsValidPtr(pm)) {
+                Log("GetPlayerMovement: PlayerManager is null or invalid");
+                return nullptr;
+            }
             
             if (!g_PlayerManagerClass) g_PlayerManagerClass = GetClass("", "PlayerManager");
-            if (!g_PlayerManagerClass) return nullptr;
+            if (!g_PlayerManagerClass) {
+                Log("GetPlayerMovement: PlayerManager class not found");
+                return nullptr;
+            }
 
-            static Il2CppField* moveField = GetField((Il2CppClass*)g_PlayerManagerClass, "move");
-            if (!moveField) return nullptr;
+            // Don't cache field - it might fail initially and never recover
+            Il2CppField* moveField = GetField((Il2CppClass*)g_PlayerManagerClass, "move");
+            if (!moveField) {
+                Log("GetPlayerMovement: 'move' field not found in PlayerManager");
+                return nullptr;
+            }
             
             void* move = nullptr;
             GetFieldValueInternal(pm, moveField, &move);
+            if (!move) {
+                Log("GetPlayerMovement: 'move' field value is null");
+            }
             return move;
         }
 
@@ -396,31 +409,55 @@ namespace sdk {
 
         void* GetPlayerRigidbody() {
             void* pm = GetPlayerManager();
-            if (!pm || !IsValidPtr(pm)) return nullptr;
+            if (!pm || !IsValidPtr(pm)) {
+                Log("GetPlayerRigidbody: PlayerManager is null or invalid");
+                return nullptr;
+            }
             
             if (!g_PlayerManagerClass) g_PlayerManagerClass = GetClass("", "PlayerManager");
-            if (!g_PlayerManagerClass) return nullptr;
+            if (!g_PlayerManagerClass) {
+                Log("GetPlayerRigidbody: PlayerManager class not found");
+                return nullptr;
+            }
 
-            static Il2CppField* rbField = GetField((Il2CppClass*)g_PlayerManagerClass, "rb");
-            if (!rbField) return nullptr;
+            Il2CppField* rbField = GetField((Il2CppClass*)g_PlayerManagerClass, "rb");
+            if (!rbField) {
+                Log("GetPlayerRigidbody: 'rb' field not found");
+                return nullptr;
+            }
 
             void* rb = nullptr;
             GetFieldValueInternal(pm, rbField, &rb);
+            if (!rb) {
+                Log("GetPlayerRigidbody: 'rb' field value is null");
+            }
             return rb;
         }
 
         void* GetPlayerCollider() {
             void* pm = GetPlayerManager();
-            if (!pm || !IsValidPtr(pm)) return nullptr;
+            if (!pm || !IsValidPtr(pm)) {
+                Log("GetPlayerCollider: PlayerManager is null or invalid");
+                return nullptr;
+            }
             
             if (!g_PlayerManagerClass) g_PlayerManagerClass = GetClass("", "PlayerManager");
-            if (!g_PlayerManagerClass) return nullptr;
+            if (!g_PlayerManagerClass) {
+                Log("GetPlayerCollider: PlayerManager class not found");
+                return nullptr;
+            }
 
-            static Il2CppField* colField = GetField((Il2CppClass*)g_PlayerManagerClass, "col");
-            if (!colField) return nullptr;
+            Il2CppField* colField = GetField((Il2CppClass*)g_PlayerManagerClass, "col");
+            if (!colField) {
+                Log("GetPlayerCollider: 'col' field not found");
+                return nullptr;
+            }
 
             void* col = nullptr;
             GetFieldValueInternal(pm, colField, &col);
+            if (!col) {
+                Log("GetPlayerCollider: 'col' field value is null");
+            }
             return col;
         }
 
