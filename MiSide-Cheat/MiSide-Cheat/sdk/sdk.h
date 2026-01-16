@@ -156,7 +156,33 @@ namespace sdk {
         std::vector<void*> GetRenderers(void* gameObjectOrComponent);
         void* CreateMaterial(void* shader);
         void* FindShader(const char* shaderName);
+        void* GetMaterial(void* renderer);
         void SetMaterial(void* renderer, void* material);
         void SetMaterialColor(void* material, float r, float g, float b, float a);
+        void SetMaterialInt(void* material, const char* propName, int value);
+        void SetMaterialFloat(void* material, const char* propName, float value);
+        
+        // Material helper to make it draw through walls (ZTest Always)
+        void SetMaterialZTestAlways(void* material);
+        void SetMaterialGlow(void* material, float r, float g, float b, float intensity);
+        
+        // Glow-specific material properties
+        void SetMaterialEmissionColor(void* material, float r, float g, float b, float a);
+        void SetMaterialGlowStrength(void* material, float strength);
+        
+        // Renderer filtering for partial body modulation
+        enum BodyPart {
+            BodyPart_None = 0,
+            BodyPart_Head = 1,
+            BodyPart_Body = 2,
+            BodyPart_Legs = 3,
+            BodyPart_Arms = 4
+        };
+        
+        // Get body part for a renderer based on its transform name
+        BodyPart GetRendererBodyPart(void* renderer);
+        
+        // Filter renderers by body part
+        std::vector<void*> GetRenderersByBodyPart(void* gameObject, BodyPart part);
     }
 }

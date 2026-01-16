@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="MiSide-Cheat/MiSide-Cheat.vcxproj" />
+  <Project Path="MiSide-Cheat/MiSide-Cheat.vcxproj" Id="3360322b-6f8c-4b18-b4b3-1b8c7030a37c" />
 </Solution>

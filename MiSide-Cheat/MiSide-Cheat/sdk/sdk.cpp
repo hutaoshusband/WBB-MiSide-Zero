@@ -3,6 +3,9 @@
 #include <windows.h>
 #include <fstream>
 #include <shlobj.h>
+#include <string>
+#include <algorithm>
+#include <cctype>
 
 namespace sdk {
     
@@ -650,6 +653,16 @@ namespace sdk {
             return matObj;
         }
 
+        void* GetMaterial(void* renderer) {
+            if (!renderer) return nullptr;
+            if (!g_RendererClass) g_RendererClass = GetClass("UnityEngine", "Renderer");
+
+            static Il2CppMethod* getMat = nullptr;
+            if (!getMat) getMat = GetMethod((Il2CppClass*)g_RendererClass, "get_material", 0);
+
+            return RuntimeInvoke(getMat, renderer, nullptr, nullptr);
+        }
+
         void SetMaterial(void* renderer, void* material) {
              if (!renderer) return;
              if (!g_RendererClass) g_RendererClass = GetClass("UnityEngine", "Renderer");
@@ -678,5 +691,187 @@ namespace sdk {
              
              RuntimeInvoke(setColor, material, params, nullptr);
         }
-    }
+
+        void SetMaterialInt(void* material, const char* propName, int value) {
+            if (!material) return;
+            if (!g_MaterialClass) g_MaterialClass = GetClass("UnityEngine", "Material");
+            
+            static Il2CppMethod* setInt = nullptr;
+            if (!setInt) setInt = GetMethod((Il2CppClass*)g_MaterialClass, "SetInt", 2);
+            if (!setInt) return;
+            
+            static void* (*il2cpp_string_new)(const char*) = nullptr;
+            if (!il2cpp_string_new) {
+                il2cpp_string_new = (void* (*)(const char*))GetProcAddress(g_GameAssembly, "il2cpp_string_new");
+            }
+            if (!il2cpp_string_new) return;
+            
+            void* strName = il2cpp_string_new(propName);
+            void* params[2] = { strName, &value };
+            RuntimeInvoke(setInt, material, params, nullptr);
+        }
+
+        void SetMaterialFloat(void* material, const char* propName, float value) {
+            if (!material) return;
+            if (!g_MaterialClass) g_MaterialClass = GetClass("UnityEngine", "Material");
+            
+            static Il2CppMethod* setFloat = nullptr;
+            if (!setFloat) setFloat = GetMethod((Il2CppClass*)g_MaterialClass, "SetFloat", 2);
+            if (!setFloat) return;
+            
+            static void* (*il2cpp_string_new)(const char*) = nullptr;
+            if (!il2cpp_string_new) {
+                il2cpp_string_new = (void* (*)(const char*))GetProcAddress(g_GameAssembly, "il2cpp_string_new");
+            }
+            if (!il2cpp_string_new) return;
+            
+            void* strName = il2cpp_string_new(propName);
+            void* params[2] = { strName, &value };
+            RuntimeInvoke(setFloat, material, params, nullptr);
+        }
+
+        void SetMaterialZTestAlways(void* material) {
+            if (!material) return;
+            // ZTest value 8 = CompareFunction.Always (draws through walls)
+            SetMaterialInt(material, "_ZTest", 8);
+            // Also disable ZWrite so it doesn't mess with depth buffer
+            SetMaterialInt(material, "_ZWrite", 0);
+        }
+
+        void SetMaterialGlow(void* material, float r, float g, float b, float intensity) {
+            if (!material) return;
+            // Set emission color (HDR)
+            struct Color { float r,g,b,a; };
+            Color emissionColor = { r * intensity, g * intensity, b * intensity, 1.0f };
+            
+            if (!g_MaterialClass) g_MaterialClass = GetClass("UnityEngine", "Material");
+            
+            // Try SetColor with _EmissionColor property name
+            static Il2CppMethod* setColor = nullptr;
+            if (!setColor) setColor = GetMethod((Il2CppClass*)g_MaterialClass, "SetColor", 2);
+            
+            if (setColor) {
+                static void* (*il2cpp_string_new)(const char*) = nullptr;
+                if (!il2cpp_string_new) {
+                    il2cpp_string_new = (void* (*)(const char*))GetProcAddress(g_GameAssembly, "il2cpp_string_new");
+                }
+                if (il2cpp_string_new) {
+                    void* strName = il2cpp_string_new("_EmissionColor");
+                    void* params[2] = { strName, &emissionColor };
+                    RuntimeInvoke(setColor, material, params, nullptr);
+                }
+            }
+            
+            // Try to enable emission keyword
+            static Il2CppMethod* enableKeyword = nullptr;
+            if (!enableKeyword) enableKeyword = GetMethod((Il2CppClass*)g_MaterialClass, "EnableKeyword", 1);
+            if (enableKeyword) {
+                static void* (*il2cpp_string_new)(const char*) = nullptr;
+                if (!il2cpp_string_new) {
+                    il2cpp_string_new = (void* (*)(const char*))GetProcAddress(g_GameAssembly, "il2cpp_string_new");
+                }
+                if (il2cpp_string_new) {
+                    void* kwStr = il2cpp_string_new("_EMISSION");
+                    void* params[1] = { kwStr };
+                    RuntimeInvoke(enableKeyword, material, params, nullptr);
+                }
+            }
+        }
+
+        void SetMaterialEmissionColor(void* material, float r, float g, float b, float a) {
+            if (!material) return;
+            // Use the new SetMaterialGlow with intensity 1.0
+            SetMaterialGlow(material, r, g, b, 1.0f);
+        }
+
+        void SetMaterialGlowStrength(void* material, float strength) {
+            if (!material) return;
+            if (!g_MaterialClass) g_MaterialClass = GetClass("UnityEngine", "Material");
+            
+            // Try to find SetFloat method with "_GlowStrength" property
+            static Il2CppMethod* setFloat = nullptr;
+            if (!setFloat) setFloat = GetMethod((Il2CppClass*)g_MaterialClass, "SetFloat", 2);
+            
+            // Create string for property name
+            static void* (*il2cpp_string_new)(const char*) = nullptr;
+            if (!il2cpp_string_new) {
+                il2cpp_string_new = (void* (*)(const char*))GetProcAddress(g_GameAssembly, "il2cpp_string_new");
+            }
+            
+            void* propName = il2cpp_string_new("_GlowStrength");
+            void* params[2] = { propName, &strength };
+            
+            RuntimeInvoke(setFloat, material, params, nullptr);
+        }
+
+        BodyPart GetRendererBodyPart(void* renderer) {
+            if (!renderer) return BodyPart_None;
+            
+            // Get transform of renderer
+            if (!g_ComponentClass) g_ComponentClass = GetClass("UnityEngine", "Component");
+            static Il2CppMethod* getTrans = nullptr;
+            if (!getTrans) getTrans = GetMethod((Il2CppClass*)g_ComponentClass, "get_transform", 0);
+            
+            void* transform = RuntimeInvoke(getTrans, renderer, nullptr, nullptr);
+            if (!transform) return BodyPart_None;
+            
+            // Get transform name
+            if (!g_TransformClass) g_TransformClass = GetClass("UnityEngine", "Transform");
+            static Il2CppMethod* getName = nullptr;
+            if (!getName) getName = GetMethod((Il2CppClass*)g_TransformClass, "get_name", 0);
+            
+            void* nameObj = RuntimeInvoke(getName, transform, nullptr, nullptr);
+            if (!nameObj) return BodyPart_None;
+            
+            // Get string value from Il2CppString
+            const char* name = *(const char**)((char*)nameObj + 0x10);
+            if (!name) return BodyPart_None;
+            
+            // Convert to lowercase for comparison
+            std::string nameStr(name);
+            for (char& c : nameStr) c = tolower(c);
+            
+            // Check for body part keywords
+            if (nameStr.find("head") != std::string::npos ||
+                nameStr.find("hair") != std::string::npos ||
+                nameStr.find("face") != std::string::npos) {
+                return BodyPart_Head;
+            }
+            if (nameStr.find("body") != std::string::npos ||
+                nameStr.find("torso") != std::string::npos ||
+                nameStr.find("chest") != std::string::npos ||
+                nameStr.find("spine") != std::string::npos) {
+                return BodyPart_Body;
+            }
+            if (nameStr.find("leg") != std::string::npos ||
+                nameStr.find("foot") != std::string::npos ||
+                nameStr.find("toe") != std::string::npos) {
+                return BodyPart_Legs;
+            }
+            if (nameStr.find("arm") != std::string::npos ||
+                nameStr.find("hand") != std::string::npos ||
+                nameStr.find("finger") != std::string::npos) {
+                return BodyPart_Arms;
+            }
+            
+            return BodyPart_None;
+        }
+
+        std::vector<void*> GetRenderersByBodyPart(void* gameObject, BodyPart part) {
+            std::vector<void*> results;
+            if (!gameObject || part == BodyPart_None) return results;
+            
+            // Get all renderers
+            std::vector<void*> allRenderers = GetRenderers(gameObject);
+            
+            // Filter by body part
+            for (void* renderer : allRenderers) {
+                if (GetRendererBodyPart(renderer) == part) {
+                    results.push_back(renderer);
+                }
+            }
+            
+            return results;
+        }
+   }
 }

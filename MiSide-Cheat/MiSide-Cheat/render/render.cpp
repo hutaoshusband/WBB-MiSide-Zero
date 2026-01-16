@@ -44,6 +44,8 @@ namespace render {
         style.FrameBorderSize = 0.0f;
         style.PopupBorderSize = 0.0f;
         
+        style.ItemInnerSpacing = ImVec2(8.0f, 4.0f); // Increased from default (4,4) to spacing text out
+        
         style.AntiAliasedLines = true;
         style.AntiAliasedFill = true;
         
@@ -182,6 +184,11 @@ namespace render {
         
         void Toggle() {
             g_bOpen = !g_bOpen;
+            
+            // Fix: Unlock cursor when menu is open
+            if (g_bOpen) {
+                ClipCursor(nullptr);
+            }
         }
         
         void SetToggleKey(int key) {
@@ -220,18 +227,18 @@ namespace render {
             float text_alpha = bg_alpha;
             
             // Logo (centered, above text)
-            const float LOGO_SIZE = 64.0f;
+            const float LOGO_SIZE = 32.0f;
             float logo_x = (screenSize.x - LOGO_SIZE) / 2.0f;
             float logo_y = (screenSize.y / 2.0f) - 100.0f;
             
             if (g_pLogoTexture) {
-                // Draw logo with alpha - flip UV vertically
+                // Draw logo with alpha - normal UV
                 ImU32 logo_tint = IM_COL32(255, 255, 255, (int)(255 * text_alpha));
                 draw->AddImage(
                     (ImTextureID)g_pLogoTexture,
                     ImVec2(logo_x, logo_y),
                     ImVec2(logo_x + LOGO_SIZE, logo_y + LOGO_SIZE),
-                    ImVec2(0, 1), ImVec2(1, 0),  // Flipped UV
+                    ImVec2(0, 0), ImVec2(1, 1),  // Normal UV
                     logo_tint
                 );
             } else {

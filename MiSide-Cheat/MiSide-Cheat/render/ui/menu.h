@@ -92,12 +92,12 @@ namespace ui {
         
         // Try to use loaded texture
         if (render::g_pLogoTexture) {
-            // Flip UV vertically to fix upside-down image
+            // Normal UV coordinates (not flipped)
             draw->AddImage(
                 (ImTextureID)render::g_pLogoTexture,
                 ImVec2(logo_x, logo_y),
                 ImVec2(logo_x + LOGO_SIZE, logo_y + LOGO_SIZE),
-                ImVec2(0, 1), ImVec2(1, 0)  // Flipped UV
+                ImVec2(0, 0), ImVec2(1, 1)  // Normal UV
             );
         } else {
             // Fallback: colored square with "W"
@@ -225,6 +225,18 @@ namespace ui {
                 if (config::g_config.visuals.chams.enabled) {
                     const char* chams_types[] = { "Flat", "Textured", "Glow" };
                     Combo("Chams Type", &config::g_config.visuals.chams_type, chams_types, 3);
+                    
+                    Separator();
+                    Checkbox("Partial Body Modulation", &config::g_config.visuals.chams_partial_body);
+                    
+                    if (config::g_config.visuals.chams_partial_body) {
+                        ImGui::Indent(10.0f * dpi_scale);
+                        Checkbox("Head", &config::g_config.visuals.chams_head);
+                        Checkbox("Body", &config::g_config.visuals.chams_body);
+                        Checkbox("Legs", &config::g_config.visuals.chams_legs);
+                        Checkbox("Arms", &config::g_config.visuals.chams_arms);
+                        ImGui::Unindent(10.0f * dpi_scale);
+                    }
                 }
             }
             EndChild();
@@ -233,8 +245,22 @@ namespace ui {
             
             BeginChild("Chams Colors", ImVec2(half_width, available_height - 40 * dpi_scale));
             {
-                ImGui::Text("Chams Color");
-                ColorPicker("##chamscol", config::g_config.visuals.chams_color);
+                if (!config::g_config.visuals.chams_partial_body) {
+                    ImGui::Text("Chams Color");
+                    ColorPicker("##chamscol", config::g_config.visuals.chams_color);
+                } else {
+                    ImGui::Text("Head Color");
+                    ColorPicker("##headcol", config::g_config.visuals.chams_head_color);
+                    
+                    ImGui::Text("Body Color");
+                    ColorPicker("##bodycol", config::g_config.visuals.chams_body_color);
+                    
+                    ImGui::Text("Legs Color");
+                    ColorPicker("##legscol", config::g_config.visuals.chams_legs_color);
+                    
+                    ImGui::Text("Arms Color");
+                    ColorPicker("##armscol", config::g_config.visuals.chams_arms_color);
+                }
             }
             EndChild();
         }

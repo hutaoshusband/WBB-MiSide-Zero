@@ -43,8 +43,19 @@ namespace config {
         
         // Chams
         Bind chams;
-        int chams_type = 0;  // 0=Flat, 1=Textured, etc.
+        int chams_type = 0;  // 0=Flat, 1=Textured, 2=Glow
         float chams_color[4] = { 1.0f, 0.0f, 1.0f, 1.0f };
+        
+        // Partial Body Modulation
+        bool chams_partial_body = false;  // Enable partial body modulation
+        bool chams_head = true;            // Apply chams to head
+        bool chams_body = true;            // Apply chams to body
+        bool chams_legs = true;            // Apply chams to legs
+        bool chams_arms = true;            // Apply chams to arms
+        float chams_head_color[4] = { 1.0f, 0.0f, 0.0f, 1.0f };    // Red for head
+        float chams_body_color[4] = { 0.0f, 1.0f, 0.0f, 1.0f };    // Green for body
+        float chams_legs_color[4] = { 0.0f, 0.0f, 1.0f, 1.0f };    // Blue for legs
+        float chams_arms_color[4] = { 1.0f, 1.0f, 0.0f, 1.0f };    // Yellow for arms
         
         // World
         Bind fullbright;

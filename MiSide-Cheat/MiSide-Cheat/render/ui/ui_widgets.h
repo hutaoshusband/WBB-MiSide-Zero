@@ -99,8 +99,8 @@ namespace ui {
         
         ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 12.0f);  // More rounded
         ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.f);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14 * scale, 14 * scale));
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8 * scale, 10 * scale));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(30 * scale, 30 * scale));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(12 * scale, 16 * scale));
         
         // Semi-transparent background
         ImColor child_bg = ImColor(22, 24, 28, 200);  // 200/255 = ~78% opacity
@@ -125,7 +125,8 @@ namespace ui {
         );
         
         ImGui::Spacing();
-        ImGui::Dummy(ImVec2(0, 6));
+        ImGui::Spacing();
+        ImGui::Dummy(ImVec2(0, 20 * scale));
     }
     
     inline void EndChild() {
@@ -266,7 +267,7 @@ namespace ui {
         
         // Label
         ImGui::PushStyleColor(ImGuiCol_Text, (ImVec4)(hovered ? text_color : text_disabled));
-        ImGui::RenderText(ImVec2(check_bb.Max.x + 8, check_bb.Min.y + (square_sz - label_size.y) / 2.0f), label);
+        ImGui::RenderText(ImVec2(check_bb.Max.x + 12 * scale, check_bb.Min.y + (square_sz - label_size.y) / 2.0f), label);
         ImGui::PopStyleColor();
         
         return pressed;
