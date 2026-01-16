@@ -61,6 +61,11 @@ namespace config {
         bool esp_col_cards = true;
         bool esp_col_cassettes = true;
         bool esp_col_coins = true;
+        float esp_col_color[4] = { 1.0f, 0.84f, 0.0f, 1.0f }; // Gold default for box
+        
+        // Collectibles Chams
+        bool chams_collectibles = false;
+        float chams_collectibles_color[4] = { 0.0f, 1.0f, 1.0f, 1.0f }; // Cyan default
     };
     
     // ============================================================

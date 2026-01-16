@@ -224,10 +224,16 @@ namespace ui {
                 }
                 
                 ImGui::Spacing();
+                ImGui::Spacing();
                 Separator();
                 ImGui::Spacing();
                 ImGui::Text("ESP Colors");
                 ColorPicker("##boxcol", config::g_config.visuals.esp_box_color);
+                ImGui::SameLine();
+                ImGui::Text("Players");
+                ColorPicker("##colboxcol", config::g_config.visuals.esp_col_color);
+                ImGui::SameLine();
+                ImGui::Text("Collectibles");
             }
             EndChild();
         }
@@ -244,8 +250,18 @@ namespace ui {
                 }
                 
                 Separator();
-                ImGui::Text("Chams Color");
+                ImGui::Text("Chams Color (Mita)");
                 ColorPicker("##chamscol", config::g_config.visuals.chams_color);
+
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+
+                Checkbox("Collectibles Chams", &config::g_config.visuals.chams_collectibles);
+                if (config::g_config.visuals.chams_collectibles) {
+                     ImGui::Text("Color (Flat)");
+                     ColorPicker("##chamscolcollect", config::g_config.visuals.chams_collectibles_color);
+                }
             }
             EndChild();
         }

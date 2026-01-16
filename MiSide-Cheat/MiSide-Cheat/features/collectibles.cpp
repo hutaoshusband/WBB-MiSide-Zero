@@ -80,7 +80,12 @@ namespace features {
 
                 if (shouldDraw) {
                     if (config::g_config.visuals.esp_box) {
-                         drawList->AddCircle({screenPos.x, screenPos.y}, 5.0f, color);
+                         // Use user defined box color for collectibles
+                         ImColor boxColor = ImColor(config::g_config.visuals.esp_col_color[0], 
+                                                    config::g_config.visuals.esp_col_color[1], 
+                                                    config::g_config.visuals.esp_col_color[2], 
+                                                    config::g_config.visuals.esp_col_color[3]);
+                         drawList->AddCircle({screenPos.x, screenPos.y}, 5.0f, boxColor);
                     }
                     drawList->AddText({screenPos.x + 8, screenPos.y - 8}, color, label.c_str());
                 }
