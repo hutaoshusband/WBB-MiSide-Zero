@@ -211,5 +211,11 @@ namespace sdk {
         
         // GameObject helpers
         void SetGameObjectActive(void* gameObject, bool active);
+
+        // ============================================================
+        // DOTween / Path Prediction
+        // ============================================================
+        std::vector<void*> GetActiveTweens();
+        std::vector<Vector3> GetTweenPathPoints(void* tween);
     }
 }

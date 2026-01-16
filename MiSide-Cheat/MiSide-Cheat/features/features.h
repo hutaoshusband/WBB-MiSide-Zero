@@ -3,12 +3,30 @@
 #include <vector>
 #include <functional>
 
-// ============================================================
-// Feature/Module System for MiSide-Zero
-// Clean architecture for adding new features
-// ============================================================
-
 namespace features {
+
+    // ============================================================
+    // Forward declarations for debug_draw namespace
+    // ============================================================
+    namespace debug_draw {
+        struct DebugDrawStats;
+        struct DebugLine;
+        struct DebugRay;
+        bool Initialize();
+        void Shutdown();
+        void EnableHooks();
+        void DisableHooks();
+        bool IsEnabled();
+        std::vector<DebugLine> GetLines();
+        std::vector<DebugRay> GetRays();
+        DebugDrawStats GetStats();
+        void ClearStats();
+    }
+    
+    // ============================================================
+    // Feature/Module System for MiSide-Zero
+    // Clean architecture for adding new features
+    // ============================================================
     
     // ============================================================
     // Module Base Class
@@ -83,4 +101,5 @@ namespace features {
     void Shutdown();
     void OnTick();
     void OnRender();
+
 }

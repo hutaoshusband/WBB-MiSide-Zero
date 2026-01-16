@@ -4,6 +4,7 @@
 #include "../texture_loader.h"
 #include "../../config/config.h"
 #include "../../features/features.h"
+#include "../../features/debug_draw.h"
 #include "../../sdk/sdk.h"
 #include "../render.h"
 #include "../../core/core.h"
@@ -237,7 +238,10 @@ namespace ui {
             // World
             BeginChild("World Settings", ImVec2(full_width, available_height));
             {
-                ImGui::TextDisabled("No world features available yet.");
+                Checkbox("Path Prediction (Movement)", &config::g_config.visuals.path_prediction);
+                if (config::g_config.visuals.path_prediction) {
+                     ImGui::TextDisabled("Predicts movement of platforms and projectiles.");
+                }
             }
             EndChild();
         }
@@ -289,8 +293,8 @@ namespace ui {
         
         // Subtabs
         ImGui::SetCursorPos(ImVec2(15 * dpi_scale, 58 * dpi_scale));
-        const char* sub_tabs[] = { "Movement", "Player", "Game" };
-        Navbar("misc_nav", &g_nMiscSubTab, sub_tabs, 3);
+        const char* sub_tabs[] = { "Movement", "Player", "Game", "Debug" };
+        Navbar("misc_nav", &g_nMiscSubTab, sub_tabs, 4);
         
         float start_y = 95 * dpi_scale;
         ImGui::SetCursorPos(ImVec2(15 * dpi_scale, start_y));
@@ -341,6 +345,48 @@ namespace ui {
 
                 Separator();
                 Checkbox("Debug View", &config::g_config.misc.debug_view);
+            }
+            EndChild();
+        }
+        else if (g_nMiscSubTab == 3) {
+            // Debug
+            BeginChild("Debug Tools", ImVec2(full_width, available_height));
+            {
+                // Debug View Toggle Button
+                if (Button(config::g_config.misc.debug_view ? "Close Debug View" : "Open Debug View", ImVec2(full_width - 30, 35 * dpi_scale))) {
+                    config::g_config.misc.debug_view = !config::g_config.misc.debug_view;
+                }
+                
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+                
+                // Debug Draw Hooks
+                Checkbox("Enable Debug Hooks", &config::g_config.misc.debug_draw_hooks);
+                if (config::g_config.misc.debug_draw_hooks) {
+                    ImGui::Indent();
+                    Checkbox("Render Debug Lines", &config::g_config.misc.debug_draw_render);
+                    ImGui::Spacing();
+                    SliderInt("Max Lines", &config::g_config.misc.debug_draw_max_lines, 100, 2000, "%d");
+                    SliderInt("Max Rays", &config::g_config.misc.debug_draw_max_rays, 100, 2000, "%d");
+                    ImGui::Unindent();
+                }
+                
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+                
+                // Statistics (compact)
+                auto debugStats = features::debug_draw::GetStats();
+                ImGui::Text("Hooks: %s | Lines: %d | Rays: %d", 
+                    debugStats.hook_active ? "ON" : "OFF",
+                    debugStats.lines_captured,
+                    debugStats.rays_captured);
+                
+                ImGui::Spacing();
+                if (Button("Clear Statistics", ImVec2(full_width - 30, 30 * dpi_scale))) {
+                    features::debug_draw::ClearStats();
+                }
             }
             EndChild();
         }
@@ -578,7 +624,7 @@ namespace ui {
             g_bMenuInitialized = true;
             // Start with menu closed animation state
             g_fMenuAlpha = 0.0f;
-            g_fMenuScale = 0.5f;
+            g_fMenuScale = 0.95f;
         }
         
         // Detect menu state change to trigger animation
@@ -589,7 +635,7 @@ namespace ui {
         }
         
         float target_alpha = menu_is_open ? 1.0f : 0.0f;
-        float target_scale = menu_is_open ? 1.0f : 0.5f;
+        float target_scale = menu_is_open ? 1.0f : 0.95f;
         float menu_anim_speed = config::g_config.menu.animation_speed;
         
         // Ensure minimum animation speed to avoid division by zero or no animation
@@ -601,21 +647,13 @@ namespace ui {
         
         g_fMenuAlpha += alpha_diff * io.DeltaTime * menu_anim_speed;
         g_fMenuScale += scale_diff * io.DeltaTime * menu_anim_speed * 0.8f;
-
-        // Helper to avoid infinite tail on interpolation
-        if (!menu_is_open && g_fMenuAlpha < 0.15f) {
-            // Force finish when nearing the end
-            float finish_speed = 5.0f; 
-            g_fMenuAlpha -= finish_speed * io.DeltaTime;
-        }
-
-        // Clamp values
-        if (!menu_is_open && g_fMenuAlpha < 0.05f) g_fMenuAlpha = 0.0f; // Only snap when closing
-        if (g_fMenuAlpha < 0.0f) g_fMenuAlpha = 0.0f;
-        if (g_fMenuAlpha > 1.0f) g_fMenuAlpha = 1.0f;
         
-        // Return early if menu is closed AND fully faded out
-        if (!menu_is_open && g_fMenuAlpha <= 0.0f) return;
+        // Clamp values
+        if (g_fMenuAlpha < 0.01f) g_fMenuAlpha = 0.0f;
+        if (g_fMenuAlpha > 0.99f) g_fMenuAlpha = 1.0f;
+        
+        // Return early if menu is closed (don't render)
+        if (!menu_is_open) return;
         
         // Menu window - 820x750 with scale animation
         ImVec2 base_size = ImVec2(820 * dpi_scale, 750 * dpi_scale);

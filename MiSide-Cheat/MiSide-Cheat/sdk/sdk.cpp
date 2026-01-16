@@ -1112,5 +1112,177 @@ namespace sdk {
             
             return names;
         }
-   }
-}
+// Namespaces continued
+        // ===========================================
+        // DOTween IMPLEMENTATION
+        // ===========================================
+
+        std::vector<void*> GetActiveTweens() {
+            std::vector<void*> tweens;
+            
+            // Try explicit TweenManager first
+            static Il2CppClass* tmClass = nullptr;
+            if (!tmClass) tmClass = GetClass("DG.Tweening.Core", "TweenManager");
+            
+            if (!tmClass) {
+                // Fallback to DOTween class which might hold the manager reference
+                static Il2CppClass* dotweenClass = nullptr;
+                if (!dotweenClass) dotweenClass = GetClass("DG.Tweening", "DOTween");
+                // This path is harder without exact offsets. Stick to TweenManager if possible.
+            }
+
+            if (!tmClass) return tweens;
+
+            // Find _activeTweens list
+            // It's usually a static field in TweenManager
+            static Il2CppField* activeTweensField = nullptr;
+            if (!activeTweensField) activeTweensField = GetField(tmClass, "_activeTweens");
+            
+            // If not found, try private fields (GetField should find them)
+            // Or try "totActiveTweens" which might be the public getter/backing field?
+            
+            if (!activeTweensField) return tweens;
+
+            void* list = nullptr;
+            il2cpp_field_static_get_value(activeTweensField, &list);
+            
+            if (!list) return tweens;
+
+            // List<T> structure:
+            // 0x10: items array
+            // 0x18: size (int32)
+            
+            int size = 0;
+            // Verify List class
+            // We can just read memory for List structure if we trust it
+            __try {
+                size = *(int*)((uintptr_t)list + 0x18);
+                void* items = *(void**)((uintptr_t)list + 0x10);
+                
+                if (items && size > 0) {
+                    // Array content starts at 0x20 usually (Il2CppArray)
+                    // The array holds pointers if T is reference type (Tween is class)
+                    void** ptrs = (void**)((uintptr_t)items + 0x20);
+                    
+                    for (int i = 0; i < size; i++) {
+                        if (ptrs[i]) {
+                            tweens.push_back(ptrs[i]);
+                        }
+                    }
+                }
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER) {
+                // Safe read failed
+            }
+            
+            return tweens;
+        }
+
+        std::vector<Vector3> GetTweenPathPoints(void* tween) {
+            std::vector<Vector3> points;
+            if (!tween) return points;
+
+            // We need to find if this tween has a 'Path' object (DG.Tweening.Plugins.Core.PathCore.Path)
+            // The tween is likely of type TweenerCore<Vector3, Path, PathOptions>
+            // We can assume if we find a field of type 'Path', it's the one.
+            
+            static Il2CppClass* pathClass = nullptr;
+            if (!pathClass) pathClass = GetClass("DG.Tweening.Plugins.Core.PathCore", "Path");
+            
+            if (!pathClass) return points;
+
+            // Reflection to find field of type Path
+            // Cache the offset once found
+            static int pathFieldOffset = -1;
+            
+            if (pathFieldOffset == -1) {
+                Il2CppClass* klass = *(Il2CppClass**)tween;
+                // We iterate fields of the tween instance
+                // We need API to iterate fields. 
+                // Since we don't have GetFields exposed easily in sdk.h (only GetField by name),
+                // we might need to search by likely names or use a brute force approach if we could.
+                // But wait, the Generics T2 is the Path object.
+                // In TweenerCore, 'endValue' is T2? Or 'changeValue'?
+                // Actually, for Path plugin, the 'Path' object IS the value being tweened in a way, 
+                // but usually it's stored in 'startValue' or 'endValue' or 'plugins' data.
+                
+                // Let's try 'endValue' field first, checking if its type matches Path class
+                // Removed il2cpp_field_get_offset usage
+                
+                // Better strategy: Look for 'wps' (waypoints) field in the object obtained from 'endValue'.
+                // If 'endValue' holds the Path object.
+            }
+
+            // Let's try to get 'endValue' and see if it looks like a Path object
+            // A Path object should have a field 'wps' (Vector3[]) and 'linearWP' (Vector3[]) etc.
+            
+            static Il2CppClass* tweenerCoreClass = nullptr; // We can't easily get generic class by name
+            // But we don't need the class def if we assume the field name 'endValue' exists on the instance.
+            // The instance 'tween' is an object.
+            
+            // We need to resolve field offset or use GetField logic every time which is slow?
+            // GetField does lookup.
+            
+            // Let's try "startValue" and "endValue"
+            // For Path tween, logic is complex.
+            // Actually, usually 'Path' object is stored in 'plugins' specific field?
+            // But simpler: The user said "DG_Tweening_Plugins_Core_PathCore_Path".
+            // If we can find where this is stored.
+            
+            // Let's try grabbing "endValue" field.
+            // Note: We need the class of the 'tween' instance to pass to GetField.
+            Il2CppClass* klass = *(Il2CppClass**)tween;
+            
+            void* pathObj = nullptr;
+            
+            // Try endValue
+            // Note: generic fields might be tricky.
+            // But usually the layout is compatible.
+            Il2CppField* endValField = GetField(klass, "endValue");
+            if (endValField) {
+                 il2cpp_field_get_value(tween, endValField, &pathObj);
+            }
+            
+            if (!pathObj) {
+                // Try startValue?
+                 Il2CppField* startValField = GetField(klass, "startValue");
+                 if (startValField) {
+                     il2cpp_field_get_value(tween, startValField, &pathObj);
+                 }
+            }
+            
+            if (!pathObj) return points;
+            
+            // Check if pathObj is actually a Path
+            // We can check if it has 'wps' field
+            Il2CppClass* objClass = *(Il2CppClass**)pathObj;
+            if (!objClass) return points;
+            
+            // const char* name = il2cpp_class_get_name(objClass); 
+            // We don't have il2cpp_class_get_name imported? 
+            // Wait, we can't check name easily.
+            // But we can check if it has "wps" field.
+            
+            Il2CppField* wpsField = GetField(objClass, "wps"); // Waypoints
+            if (!wpsField) return points;
+            
+            // Found it! It has 'wps'. It's likely the Path object.
+            void* wpsArray = nullptr;
+            il2cpp_field_get_value(pathObj, wpsField, &wpsArray);
+            
+            if (wpsArray) {
+                // It's a Vector3[] (Array)
+                int count = *(int*)((uintptr_t)wpsArray + 0x18);
+                if (count > 0 && count < 1000) { // Sanity check
+                    Vector3* src = (Vector3*)((uintptr_t)wpsArray + 0x20);
+                    for (int i = 0; i < count; i++) {
+                        points.push_back(src[i]);
+                    }
+                }
+            }
+            
+            return points;
+        }
+
+    } // namespace game
+} // namespace sdk

@@ -56,6 +56,7 @@ namespace config {
         
         // Re-mapping for old feature naming
         bool esp_enabled = false; // Legacy, will be kept for compatibility if needed
+        bool path_prediction = false;
     };
     
     // ============================================================
@@ -96,6 +97,10 @@ namespace config {
 
         // Developer / Debug
         bool debug_view = false;
+        bool debug_draw_hooks = false;
+        bool debug_draw_render = false;
+        int debug_draw_max_lines = 500;
+        int debug_draw_max_rays = 500;
 
         // Game Modifiers
         bool mita_speed_enabled = false;

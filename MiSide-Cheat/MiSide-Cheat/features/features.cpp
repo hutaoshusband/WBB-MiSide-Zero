@@ -1,5 +1,7 @@
 #include "features.h"
 #include "chams.h"
+#include "debug_draw.h"
+#include "path_prediction.h"
 #include "../config/config.h"
 #include <imgui.h>
 #include <algorithm>
@@ -7,6 +9,16 @@
 #include "../sdk/sdk.h"
 
 namespace features {
+
+// Helper function to expand bounds (outside OnRender to avoid SEH issues)
+static void ExpandBounds(const sdk::Vector3& p, float& minX, float& maxX, float& minY, float& maxY) {
+    if (p.z > 0) { // Only if visible
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+    }
+}
     
     // ============================================================
     // Get all modules for display in the module list and menu
@@ -18,6 +30,7 @@ namespace features {
         // Visuals
         modules.push_back({ "ESP",           "Visuals",  &config::g_config.visuals.esp.enabled });
         modules.push_back({ "Chams",         "Visuals",  &config::g_config.visuals.chams.enabled });
+        modules.push_back({ "Path Predict",  "Visuals",  &config::g_config.visuals.path_prediction });
         
         // Aimbot
         modules.push_back({ "Aimbot",        "Aimbot",   &config::g_config.aimbot.aimbot.enabled });
@@ -54,12 +67,14 @@ namespace features {
     
     void Initialize() {
         // Initialize all feature systems here
-        // For now, nothing special needed
         // Initialize SDK if not already, to ensure features work without Debug View
         static bool init = false;
         if (!init) {
             init = sdk::Initialize();
         }
+        
+        // Initialize debug draw system
+        debug_draw::Initialize();
     }
     
     void Shutdown() {
@@ -79,13 +94,23 @@ namespace features {
         }
         if (!sdk_ready) return;
         
-        // SEH protection for all IL2CPP calls
+        // Static variables outside SEH block
+        static bool lastNoClip = false;
+        static float saved_speed = -1.0f;
+        static float saved_mita_speed = -1.0f;
+        static bool hooksEnabled = false;
+        
+        // Get game objects
+        void* rb = nullptr;
+        void* col = nullptr;
+        void* move = nullptr;
+        void* agent = nullptr;
+        void* animator = nullptr;
+        
         __try {
-            static bool lastNoClip = false;
-            
-            void* rb = sdk::game::GetPlayerRigidbody();
-            void* col = sdk::game::GetPlayerCollider();
-            void* move = sdk::game::GetPlayerMovement();
+            rb = sdk::game::GetPlayerRigidbody();
+            col = sdk::game::GetPlayerCollider();
+            move = sdk::game::GetPlayerMovement();
             
             // NoClip logic
             bool noClipActive = config::g_config.misc.no_clip.IsActive();
@@ -103,7 +128,6 @@ namespace features {
             }
 
             // SpeedHack logic
-            static float saved_speed = -1.0f;
             if (move) {
                 if (config::g_config.misc.speed_hack.IsActive()) {
                     // If we haven't saved the speed yet, save it
@@ -131,11 +155,9 @@ namespace features {
             }
 
             // Mita Speed Hack Logic
-            static float saved_mita_speed = -1.0f;
-            
             if (config::g_config.misc.mita_speed_enabled) {
-                void* agent = sdk::game::GetMitaNavMeshAgent();
-                void* animator = sdk::game::GetMitaAnimator();
+                agent = sdk::game::GetMitaNavMeshAgent();
+                animator = sdk::game::GetMitaAnimator();
                 
                 if (animator) {
                     sdk::game::SetAnimatorApplyRootMotion(animator, false);
@@ -157,13 +179,13 @@ namespace features {
             } else {
                 // Restore logic
                 if (saved_mita_speed > 0.0f) {
-                     void* animator = sdk::game::GetMitaAnimator();
-                     if (animator) sdk::game::SetAnimatorApplyRootMotion(animator, true);
+                     void* anim_restore = sdk::game::GetMitaAnimator();
+                     if (anim_restore) sdk::game::SetAnimatorApplyRootMotion(anim_restore, true);
 
-                     void* agent = sdk::game::GetMitaNavMeshAgent();
-                     if (agent) {
-                         sdk::game::SetAgentSpeed(agent, saved_mita_speed);
-                         sdk::game::SetAgentAcceleration(agent, 8.0f); // Reset to something reasonable
+                     void* agent_restore = sdk::game::GetMitaNavMeshAgent();
+                     if (agent_restore) {
+                         sdk::game::SetAgentSpeed(agent_restore, saved_mita_speed);
+                         sdk::game::SetAgentAcceleration(agent_restore, 8.0f); // Reset to something reasonable
                      }
                      saved_mita_speed = -1.0f;
                 }
@@ -171,6 +193,16 @@ namespace features {
 
             // Chams
             chams::OnTick();
+            
+            // Debug Draw Hooks Management
+            if (config::g_config.misc.debug_draw_hooks != hooksEnabled) {
+                if (config::g_config.misc.debug_draw_hooks) {
+                    debug_draw::EnableHooks();
+                } else {
+                    debug_draw::DisableHooks();
+                }
+                hooksEnabled = config::g_config.misc.debug_draw_hooks;
+            }
         }
         __except(EXCEPTION_EXECUTE_HANDLER) {
             // IL2CPP call crashed - likely GC issue or invalid pointer
@@ -190,6 +222,9 @@ namespace features {
             sdk::AttachCurrentThread();
             renderThreadAttached = true;
         }
+
+        // Path Prediction
+        path_prediction::OnRender();
         
         if (config::g_config.misc.debug_view) {
             ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
@@ -204,6 +239,9 @@ namespace features {
                 if (!sdkInit) {
                     sdkInit = sdk::Initialize();
                 }
+                
+                // Get statistics outside SEH block
+                debug_draw::DebugDrawStats debugStats{};
                 
                 __try {
                     if (!sdk::IsReady()) {
@@ -285,6 +323,36 @@ namespace features {
                              
                              ImGui::Text("Player W2S: %.1f, %.1f", screenPos.x, screenPos.y);
                         }
+                        
+                        // Debug Draw Statistics
+                        ImGui::Spacing();
+                        ImGui::TextColored(ImVec4(1, 1, 0, 1), "[Debug Draw Hooks]");
+                        debugStats = debug_draw::GetStats();
+                        ImGui::Text("Hooks Active: %s", debugStats.hook_active ? "YES" : "NO");
+                        ImGui::Text("Lines Captured: %d", debugStats.lines_captured);
+                        ImGui::Text("Rays Captured: %d", debugStats.rays_captured);
+                        ImGui::Text("Gizmos Called: %d", debugStats.gizmos_called);
+                        
+                        // Current Settings
+                        ImGui::Text("Render Debug: %s", config::g_config.misc.debug_draw_render ? "YES" : "NO");
+                        ImGui::Text("Max Lines: %d", config::g_config.misc.debug_draw_max_lines);
+                        ImGui::Text("Max Rays: %d", config::g_config.misc.debug_draw_max_rays);
+
+                        // DOTween Stats
+                        ImGui::Spacing();
+                        ImGui::TextColored(ImVec4(1, 1, 0, 1), "[DOTween]");
+                        static int activeTweensCount = 0;
+                        static int pathTweensCount = 0;
+                        if (ImGui::GetFrameCount() % 30 == 0) { // Update every 30 frames
+                             auto tweens = sdk::game::GetActiveTweens();
+                             activeTweensCount = (int)tweens.size();
+                             pathTweensCount = 0;
+                             for(auto t : tweens) {
+                                 if (sdk::game::GetTweenPathPoints(t).size() > 1) pathTweensCount++;
+                             }
+                        }
+                        ImGui::Text("Active Tweens: %d", activeTweensCount);
+                        ImGui::Text("Path Tweens: %d", pathTweensCount);
                     }
                 }
                 __except(EXCEPTION_EXECUTE_HANDLER) {
@@ -302,14 +370,93 @@ namespace features {
         }
 
 
-        // ESP Rendering with SEH Protection
-        if (config::g_config.visuals.esp.IsActive()) {
-            __try {
-                void* mita = sdk::game::GetMitaManager();
+            // Debug Draw Rendering - Show captured debug lines and rays
+            if (config::g_config.misc.debug_draw_render && debug_draw::IsEnabled()) {
+                // Get data outside SEH block
+                std::vector<features::debug_draw::DebugLine> lines;
+                std::vector<features::debug_draw::DebugRay> rays;
+                
+                __try {
+                    lines = debug_draw::GetLines();
+                    rays = debug_draw::GetRays();
+                }
+                __except(EXCEPTION_EXECUTE_HANDLER) {
+                    // Failed to get debug data, skip rendering
+                }
+                
+                // Rendering outside SEH block
+                if (!lines.empty() || !rays.empty()) {
+                    // Draw captured lines
+                    int lineCount = 0;
+                    int maxLines = config::g_config.misc.debug_draw_max_lines;
+                    
+                    for (const auto& line : lines) {
+                        if (lineCount >= maxLines) break;
+                        
+                        // Convert world coordinates to screen
+                        sdk::Vector3 screenStart = sdk::game::WorldToScreen(line.start);
+                        sdk::Vector3 screenEnd = sdk::game::WorldToScreen(line.end);
+                        
+                        // Only draw if both points are visible
+                        if (screenStart.z > 0 && screenEnd.z > 0) {
+                            ImColor lineColor(line.r * 255, line.g * 255, line.b * 255, line.a * 255);
+                            ImGui::GetForegroundDrawList()->AddLine(
+                                ImVec2(screenStart.x, screenStart.y),
+                                ImVec2(screenEnd.x, screenEnd.y),
+                                lineColor,
+                                1.0f
+                            );
+                            lineCount++;
+                        }
+                    }
+                    
+                    // Draw captured rays
+                    int rayCount = 0;
+                    int maxRays = config::g_config.misc.debug_draw_max_rays;
+                    
+                    for (const auto& ray : rays) {
+                        if (rayCount >= maxRays) break;
+                        
+                        // Calculate ray end point (assuming ray is 10 units long)
+                        sdk::Vector3 rayEnd = ray.start + (ray.direction * 10.0f);
+                        
+                        // Convert to screen
+                        sdk::Vector3 screenStart = sdk::game::WorldToScreen(ray.start);
+                        sdk::Vector3 screenEnd = sdk::game::WorldToScreen(rayEnd);
+                        
+                        // Only draw if both points are visible
+                        if (screenStart.z > 0 && screenEnd.z > 0) {
+                            ImColor rayColor(ray.r * 255, ray.g * 255, ray.b * 255, ray.a * 255);
+                            ImGui::GetForegroundDrawList()->AddLine(
+                                ImVec2(screenStart.x, screenStart.y),
+                                ImVec2(screenEnd.x, screenEnd.y),
+                                rayColor,
+                                1.0f
+                            );
+                            rayCount++;
+                        }
+                    }
+                }
+            }
+
+            // ESP Rendering with SEH Protection
+            if (config::g_config.visuals.esp.IsActive()) {
+                void* mita = nullptr;
+                void* anim = nullptr;
+                
+                __try {
+                    mita = sdk::game::GetMitaManager();
+                    
+                    if (mita) {
+                        anim = sdk::game::GetMitaAnimator();
+                    }
+                }
+                __except(EXCEPTION_EXECUTE_HANDLER) {
+                    // Silently ignore ESP crashes - will retry next frame
+                    return;
+                }
                 
                 if (mita) {
-                    void* anim = sdk::game::GetMitaAnimator();
-                    
                     if (anim) {
                         // Get key bone positions for bounding box
                         sdk::Vector3 headWorld = sdk::game::GetBonePosition(anim, 10);      // Head
@@ -338,24 +485,14 @@ namespace features {
                             float minX = headScreen.x, maxX = headScreen.x;
                             float minY = headScreen.y, maxY = headScreen.y;
                             
-                            // Helper lambda to expand bounds
-                            auto expandBounds = [&](const sdk::Vector3& p) {
-                                if (p.z > 0) { // Only if visible
-                                    if (p.x < minX) minX = p.x;
-                                    if (p.x > maxX) maxX = p.x;
-                                    if (p.y < minY) minY = p.y;
-                                    if (p.y > maxY) maxY = p.y;
-                                }
-                            };
-                            
-                            expandBounds(hipsScreen);
-                            expandBounds(leftFootScreen);
-                            expandBounds(rightFootScreen);
-                            expandBounds(leftHandScreen);
-                            expandBounds(rightHandScreen);
-                            expandBounds(leftShoulderScreen);
-                            expandBounds(rightShoulderScreen);
-                            
+                            ExpandBounds(hipsScreen, minX, maxX, minY, maxY);
+                            ExpandBounds(leftFootScreen, minX, maxX, minY, maxY);
+                            ExpandBounds(rightFootScreen, minX, maxX, minY, maxY);
+                            ExpandBounds(leftHandScreen, minX, maxX, minY, maxY);
+                            ExpandBounds(rightHandScreen, minX, maxX, minY, maxY);
+                            ExpandBounds(leftShoulderScreen, minX, maxX, minY, maxY);
+                            ExpandBounds(rightShoulderScreen, minX, maxX, minY, maxY);
+                             
                              
                              // Check if Mita is running/moving to make ESP thicker
                              float thickness = 2.0f;
@@ -385,7 +522,7 @@ namespace features {
                                 minX = center - 5.0f;
                                 maxX = center + 5.0f;
                             }
-                            
+                             
                             // Draw Box
                             ImGui::GetForegroundDrawList()->AddRect(
                                 ImVec2(minX, minY), 
@@ -395,12 +532,12 @@ namespace features {
                                 0, 
                                 thickness
                             );
-                            
+                             
                             // Draw Name centered above box
                             float textWidth = ImGui::CalcTextSize("Mita").x;
                             ImGui::GetForegroundDrawList()->AddText(
                                 ImVec2(minX + (maxX - minX) / 2.0f - textWidth / 2.0f, minY - 18), 
-                                ImColor(255, 255, 255, 255), 
+                                ImColor(255,255,255,255), 
                                 "Mita"
                             );
                         }
@@ -417,31 +554,26 @@ namespace features {
                             float height = screenRoot.y - screenHead.y;
                             if (height < 0) height = -height;
                             if (height < 5.0f) height = 5.0f;
-                            
+                             
                             float width = height * 0.5f;
                             float x = screenHead.x - (width / 2);
                             float y = screenHead.y;
-                            
+                             
                             ImGui::GetForegroundDrawList()->AddRect(
                                 ImVec2(x, y), 
                                 ImVec2(x + width, y + height), 
                                 ImColor(255, 0, 0, 255), 
                                 0.0f, 0, 2.0f
                             );
-                            
+                             
                             ImGui::GetForegroundDrawList()->AddText(
                                 ImVec2(x + (width/2) - 10, y - 15), 
-                                ImColor(255, 255, 255, 255), 
+                                ImColor(255,255,255,255), 
                                 "Mita"
                             );
                         }
                     }
                 }
             }
-            __except(EXCEPTION_EXECUTE_HANDLER) {
-                // Silently ignore ESP crashes - will retry next frame
-            }
-        }
     }
 }
-

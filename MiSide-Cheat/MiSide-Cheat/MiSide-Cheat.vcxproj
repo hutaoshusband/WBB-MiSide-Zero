@@ -43,7 +43,6 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  
   <!-- Debug x64 -->
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -64,7 +63,6 @@
       <AdditionalDependencies>d3d11.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  
   <!-- Release x64 -->
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -74,12 +72,14 @@
       <SDLCheck>false</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;MISIDECHEAT_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)external\imgui;$(ProjectDir)external\imgui\backends;$(ProjectDir)external\minhook;$(ProjectDir)external\minhook\hde;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <Optimization>MaxSpeed</Optimization>
+      <LanguageStandard_C>stdclatest</LanguageStandard_C>
+      <ExceptionHandling>false</ExceptionHandling>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -90,7 +90,6 @@
       <AdditionalDependencies>d3d11.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  
   <!-- Headers -->
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -105,6 +104,8 @@
     <ClInclude Include="config\config.h" />
     <ClInclude Include="features\features.h" />
     <ClInclude Include="features\chams.h" />
+    <ClInclude Include="features\debug_draw.h" />
+    <ClInclude Include="features\path_prediction.h" />
     <!-- ImGui -->
     <ClInclude Include="external\imgui\imgui.h" />
     <ClInclude Include="external\imgui\imgui_internal.h" />
@@ -117,7 +118,6 @@
     <!-- MinHook -->
     <ClInclude Include="external\minhook\MinHook.h" />
   </ItemGroup>
-  
   <!-- Source Files -->
   <ItemGroup>
     <ClCompile Include="dllmain.cpp" />
@@ -127,6 +127,7 @@
     <ClCompile Include="render\render.cpp" />
     <ClCompile Include="features\features.cpp" />
     <ClCompile Include="features\chams.cpp" />
+    <ClCompile Include="features\debug_draw.cpp" />
     <!-- ImGui -->
     <ClCompile Include="external\imgui\imgui.cpp" />
     <ClCompile Include="external\imgui\imgui_draw.cpp" />
@@ -141,8 +142,8 @@
     <ClCompile Include="external\minhook\hde\hde64.c" />
     <ClCompile Include="sdk\sdk.cpp" />
     <ClCompile Include="config\config.cpp" />
+    <ClCompile Include="features\path_prediction.cpp" />
   </ItemGroup>
-  
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
