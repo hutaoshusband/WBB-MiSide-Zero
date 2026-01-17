@@ -9,6 +9,7 @@
 #include <imgui.h>
 #include <algorithm>
 #include <cstring>
+#include <cmath>
 #include "../sdk/sdk.h"
 
 namespace features {
@@ -33,6 +34,7 @@ namespace features {
         modules.push_back({ "Speed",         "Movement", &config::g_config.misc.speed_hack.enabled });
         modules.push_back({ "Fly",           "Movement", &config::g_config.misc.fly_hack.enabled });
         modules.push_back({ "NoClip",        "Movement", &config::g_config.misc.no_clip.enabled });
+        modules.push_back({ "Freeze",        "Movement", &config::g_config.misc.freeze_cam.enabled });
         
         // Game
         modules.push_back({ "Mita Speed",    "Game",     &config::g_config.misc.mita_speed_enabled });
@@ -85,10 +87,11 @@ namespace features {
         config::g_config.misc.speed_hack.enabled = false;
         config::g_config.misc.fly_hack.enabled = false;
         config::g_config.misc.no_clip.enabled = false;
+        config::g_config.misc.freeze_cam.enabled = false;
         config::g_config.misc.mita_speed_enabled = false;
         config::g_config.misc.debug_draw_hooks = false;
         config::g_config.misc.debug_draw_render = false;
-        
+
         // Disable debug draw hooks if active
         debug_draw::DisableHooks();
     }
@@ -113,6 +116,16 @@ namespace features {
         static float saved_speed = -1.0f;
         static float saved_mita_speed = -1.0f;
         static bool hooksEnabled = false;
+
+        // Freecam state
+        static bool freecamActive = false;
+        static bool freecamWasActive = false;
+        static sdk::Vector3 freecamPosition = {0, 0, 0};
+        static sdk::Vector3 savedCameraPosition = {0, 0, 0}; // Store original camera pos
+        static sdk::Quaternion freecamRotation = {0, 0, 0, 1};
+        static sdk::Quaternion savedCameraRotation = {0, 0, 0, 1}; // Store original camera rot
+        static float freecamYaw = 0.0f;
+        static float freecamPitch = 0.0f;
         
         // Get game objects
         void* rb = nullptr;
@@ -226,6 +239,195 @@ namespace features {
                         sdk::game::SetCameraFOV(cam, saved_fov);
                     }
                     saved_fov = -1.0f;
+                }
+            }
+
+            // ============================================================
+            // FREEZE IMPLEMENTATION (formerly Freecam)
+            // Freezes player and camera in place - camera can still look around
+            // ============================================================
+            bool freezeActive = config::g_config.misc.freeze_cam.IsActive();
+
+            if (freezeActive) {
+                // Freeze on first activation
+                if (!freecamWasActive) {
+                    if (rb) {
+                        sdk::game::SetRigidbodyKinematic(rb, true);
+                        // Zero velocity
+                        if (sdk::IsValidPtr(rb)) {
+                            *(sdk::Vector3*)((uintptr_t)rb + 0x1C) = {0, 0, 0};
+                        }
+                    }
+                    if (col) {
+                        sdk::game::SetColliderEnabled(col, false);
+                    }
+
+                    void* movement = sdk::game::GetPlayerMovement();
+                    void* look = sdk::game::GetPlayerLook();
+                    if (movement) sdk::game::SetBehaviourEnabled(movement, false);
+                    if (look) sdk::game::SetBehaviourEnabled(look, false);
+
+                    freecamWasActive = true;
+                }
+            } else {
+                // Unfreeze when deactivated
+                if (freecamWasActive) {
+                    if (rb) sdk::game::SetRigidbodyKinematic(rb, false);
+                    if (col) sdk::game::SetColliderEnabled(col, true);
+
+                    void* movement = sdk::game::GetPlayerMovement();
+                    void* look = sdk::game::GetPlayerLook();
+                    if (movement) sdk::game::SetBehaviourEnabled(movement, true);
+                    if (look) sdk::game::SetBehaviourEnabled(look, true);
+
+                    freecamWasActive = false;
+                }
+            }
+
+            // ============================================================
+            // FLY HACK IMPLEMENTATION - Fixed with proper icalls
+            // Uses GetAsyncKeyState for reliable input detection
+            // ============================================================
+            static bool flyWasActive = false;
+            static sdk::Vector3 flyPosition = {0, 0, 0};
+            static bool flyPositionInitialized = false;
+            bool flyActive = config::g_config.misc.fly_hack.IsActive();
+
+            if (flyActive) {
+                // Initialize on first activation
+                if (!flyWasActive) {
+                    // Get initial position from feet transform with fallback
+                    void* feet = sdk::game::GetPlayerFeetTransform();
+                    if (feet && sdk::IsValidPtr(feet)) {
+                        __try {
+                            flyPosition = sdk::game::GetTransformPositionFast(feet);
+                            flyPositionInitialized = true;
+                        }
+                        __except(EXCEPTION_EXECUTE_HANDLER) {
+                            // Fallback to camera position
+                            void* cam = sdk::game::GetPlayerCamera();
+                            if (cam) {
+                                flyPosition = sdk::game::GetCameraPosition(cam);
+                                flyPositionInitialized = true;
+                            }
+                        }
+                    }
+
+                    // Disable movement via canMove = false
+                    void* move = sdk::game::GetPlayerMovement();
+                    if (move && sdk::IsValidPtr(move)) {
+                        __try {
+                            *(bool*)((uintptr_t)move + 0x18) = false;
+                        }
+                        __except(EXCEPTION_EXECUTE_HANDLER) {}
+                    }
+
+                    // Enable noclip physics (kinematic = no gravity, no collider = pass through)
+                    if (rb && sdk::IsValidPtr(rb)) {
+                        sdk::game::SetRigidbodyKinematic(rb, true);
+                    }
+                    if (col && sdk::IsValidPtr(col)) {
+                        sdk::game::SetColliderEnabled(col, false);
+                    }
+
+                    flyWasActive = true;
+                }
+
+                // Apply movement every frame
+                if (flyPositionInitialized) {
+                    void* cam = sdk::game::GetPlayerCamera();
+                    if (cam && sdk::IsValidPtr(cam)) {
+                        __try {
+                            // Get camera direction
+                            sdk::Vector3 forward = sdk::game::GetCameraForward(cam);
+
+                            // Normalize forward vector
+                            float forwardLen = sqrtf(forward.x * forward.x + forward.y * forward.y + forward.z * forward.z);
+                            if (forwardLen > 0.001f) {
+                                forward.x /= forwardLen;
+                                forward.y /= forwardLen;
+                                forward.z /= forwardLen;
+                            }
+
+                            // Calculate right vector (perpendicular on XZ plane)
+                            sdk::Vector3 right = {-forward.z, 0.0f, forward.x};
+                            float rightLen = sqrtf(right.x * right.x + right.z * right.z);
+                            if (rightLen > 0.001f) {
+                                right.x /= rightLen;
+                                right.z /= rightLen;
+                            }
+
+                            // Movement speed
+                            float speed = config::g_config.misc.fly_speed * ImGui::GetIO().DeltaTime;
+
+                            // Calculate movement - use GetAsyncKeyState for reliable background detection
+                            sdk::Vector3 moveDelta = {0, 0, 0};
+
+                            // WASD - W/S includes vertical (forward.y), A/D is horizontal only
+                            if (GetAsyncKeyState(0x57) & 0x8000) { // W - forward (includes Y for looking up/down)
+                                moveDelta.x += forward.x * speed;
+                                moveDelta.y += forward.y * speed;  // This allows flying up/down when looking up/down
+                                moveDelta.z += forward.z * speed;
+                            }
+                            if (GetAsyncKeyState(0x53) & 0x8000) { // S - backward
+                                moveDelta.x -= forward.x * speed;
+                                moveDelta.y -= forward.y * speed;
+                                moveDelta.z -= forward.z * speed;
+                            }
+                            if (GetAsyncKeyState(0x41) & 0x8000) { // A - left (strafe, horizontal only)
+                                moveDelta.x -= right.x * speed;
+                                moveDelta.z -= right.z * speed;
+                            }
+                            if (GetAsyncKeyState(0x44) & 0x8000) { // D - right (strafe, horizontal only)
+                                moveDelta.x += right.x * speed;
+                                moveDelta.z += right.z * speed;
+                            }
+                            // Space/Shift for pure vertical movement
+                            if (GetAsyncKeyState(VK_SPACE) & 0x8000) {
+                                moveDelta.y += speed;  // Going UP
+                            }
+                            if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
+                                moveDelta.y -= speed;  // Going DOWN
+                            }
+
+                            // Update cached position
+                            flyPosition.x += moveDelta.x;
+                            flyPosition.y += moveDelta.y;
+                            flyPosition.z += moveDelta.z;
+
+                            // Set position with fallback
+                            void* feet = sdk::game::GetPlayerFeetTransform();
+                            if (feet && sdk::IsValidPtr(feet)) {
+                                sdk::game::SetPlayerPositionDirect(flyPosition);
+                            }
+                        }
+                        __except(EXCEPTION_EXECUTE_HANDLER) {
+                            // Silently fail - skip this frame
+                        }
+                    }
+                }
+            } else {
+                // Restore when deactivated
+                if (flyWasActive) {
+                    // Restore canMove
+                    void* move = sdk::game::GetPlayerMovement();
+                    if (move && sdk::IsValidPtr(move)) {
+                        __try {
+                            *(bool*)((uintptr_t)move + 0x18) = true;
+                        }
+                        __except(EXCEPTION_EXECUTE_HANDLER) {}
+                    }
+
+                    // Restore physics
+                    if (rb && sdk::IsValidPtr(rb)) {
+                        sdk::game::SetRigidbodyKinematic(rb, false);
+                    }
+                    if (col && sdk::IsValidPtr(col)) {
+                        sdk::game::SetColliderEnabled(col, true);
+                    }
+
+                    flyWasActive = false;
+                    flyPositionInitialized = false;
                 }
             }
 

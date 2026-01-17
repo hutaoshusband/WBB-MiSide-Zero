@@ -133,6 +133,10 @@ namespace sdk {
         void* GetPlayerCamera(); // From PlayerManager
         void* GetMainCamera();   // From Unity Static Property
         void* GetPlayerMovement(); // kiriMoveBasic
+        void* GetPlayerLook(); // kiriLook
+        void* GetPlayerCameraScript(); // PlayerCamera script
+
+        void SetBehaviourEnabled(void* behaviour, bool enabled);
         
         Vector3 GetTransformPosition(void* transform);
         Vector3 GetPosition(void* gameObjectOrComponent); 
@@ -219,9 +223,29 @@ namespace sdk {
         void* GetPlayerCameraObject();
         float GetCameraFOV(void* camera);
         void SetCameraFOV(void* camera, float fov);
+
+        // Camera Position/Rotation (for Freecam)
+        Vector3 GetCameraPosition(void* camera);
+        void SetCameraPosition(void* camera, Vector3 pos);
+        Quaternion GetCameraRotation(void* camera);
+        Vector3 GetCameraRotationEuler(void* camera);
+        void SetCameraRotation(void* camera, Quaternion rot);
+        Vector3 GetCameraForward(void* camera);
+
+        // Fast direct memory access for Freecam (bypasses Unity overhead)
+        void* GetCameraTransform(void* camera);
+        Vector3 GetTransformPositionFast(void* transform);
+        void SetTransformPositionFast(void* transform, Vector3 pos);
+        Quaternion GetTransformRotationFast(void* transform);
+        void SetTransformRotationFast(void* transform, Quaternion rot);
+
         void* GetKiriMove();
         float GetJumpHeight(void* kiriMove);
         void SetJumpHeight(void* kiriMove, float height);
+
+        // Fly Helper - direct Transform manipulation
+        void* GetPlayerFeetTransform();  // kiriMoveBasic.feet
+        void SetPlayerPositionDirect(Vector3 pos);
 
         // ============================================================
         // DOTween / Path Prediction

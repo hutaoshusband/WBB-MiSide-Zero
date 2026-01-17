@@ -101,6 +101,9 @@ namespace config {
 
         Bind no_clip;
 
+        Bind freeze_cam;  // Renamed from freecam - it freezes player and camera
+        float freeze_speed = 10.0f;
+
         // Player Modification
         Bind fov_changer;
         float fov_value = 90.0f;
@@ -130,6 +133,7 @@ namespace config {
         bool speed_hack_enabled = false; // Legacy
         bool fly_hack_enabled = false; // Legacy
         bool no_clip_enabled = false; // Legacy
+        bool freeze_cam_enabled = false; // Legacy
     };
     
     // ============================================================

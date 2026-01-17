@@ -205,6 +205,7 @@ namespace ui {
         check_bind("Speed Hack", &config::g_config.misc.speed_hack);
         check_bind("Fly Hack", &config::g_config.misc.fly_hack);
         check_bind("NoClip", &config::g_config.misc.no_clip);
+        check_bind("Freeze", &config::g_config.misc.freeze_cam);
         check_bind("FOV Changer", &config::g_config.misc.fov_changer);
         check_bind("Jump Power", &config::g_config.misc.jump_power);
         check_bind("Infinite Stamina", &config::g_config.misc.infinite_stamina);
@@ -522,9 +523,18 @@ namespace ui {
                     SliderFloat("Fly Speed", &config::g_config.misc.fly_speed, 1.0f, 50.0f, "%.0f");
                     ImGui::Unindent();
                 }
-                
+
                 Separator();
                 CheckboxBind("NoClip", &config::g_config.misc.no_clip);
+
+                Separator();
+                CheckboxBind("Freeze", &config::g_config.misc.freeze_cam);
+                if (config::g_config.misc.freeze_cam.enabled) {
+                    ImGui::Indent();
+                    SliderFloat("Freeze Speed", &config::g_config.misc.freeze_speed, 1.0f, 50.0f, "%.0f");
+                    ImGui::TextDisabled("Freezes player and camera in place");
+                    ImGui::Unindent();
+                }
             }
             EndChild();
         }

@@ -1306,6 +1306,35 @@ namespace sdk {
             return;
         }
 
+        void* GetPlayerLook() {
+            void* pm = GetPlayerManager();
+            if (!pm || !IsValidPtr(pm)) return nullptr;
+            
+            // kiriLook look; // 0x60
+            __try {
+                void* look = *(void**)((uintptr_t)pm + 0x60);
+                if (look && IsValidPtr(look)) return look;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {}
+            return nullptr;
+        }
+
+        void SetBehaviourEnabled(void* behaviour, bool enabled) {
+            if (!behaviour) return;
+            typedef void(__stdcall* fnSetEnabled)(void*, bool);
+            static fnSetEnabled s_fn = nullptr;
+            
+            if (!s_fn) {
+                if (!resolve_icall) resolve_icall = (t_il2cpp_resolve_icall)GetProcAddress(GetModuleHandleA("GameAssembly.dll"), "il2cpp_resolve_icall");
+                if (resolve_icall) s_fn = (fnSetEnabled)resolve_icall("UnityEngine.Behaviour::set_enabled(System.Boolean)");
+            }
+            if (s_fn) s_fn(behaviour, enabled);
+        }
+
+        void* GetPlayerCameraScript() {
+             // FindObjectOfType("PlayerCamera") is reliable
+             return FindObjectOfType("PlayerCamera");
+        }
+
 // Namespaces continued
         // ===========================================
         // DOTween IMPLEMENTATION
@@ -1582,6 +1611,281 @@ namespace sdk {
              WideCharToMultiByte(CP_UTF8, 0, chars, length, buffer, sizeof(buffer)-1, NULL, NULL);
              buffer[length < 63 ? length : 63] = 0;
              return buffer;
+        }
+
+        // ===========================================
+        // CAMERA FUNCTIONS (FREECAM)
+        // ===========================================
+
+        Vector3 GetCameraPosition(void* camera) {
+            if (!camera) return {0,0,0};
+            if (!g_TransformClass) g_TransformClass = GetClass("UnityEngine", "Transform");
+
+            static Il2CppMethod* getTrans = nullptr;
+            if (!getTrans) getTrans = GetMethod((Il2CppClass*)g_ComponentClass, "get_transform", 0);
+
+            void* transform = RuntimeInvoke(getTrans, camera, nullptr, nullptr);
+            if (!transform) return {0,0,0};
+
+            return GetTransformPosition(transform);
+        }
+
+        void SetCameraPosition(void* camera, Vector3 pos) {
+            if (!camera) return;
+            if (!g_TransformClass) g_TransformClass = GetClass("UnityEngine", "Transform");
+
+            static Il2CppMethod* getTrans = nullptr;
+            if (!getTrans) getTrans = GetMethod((Il2CppClass*)g_ComponentClass, "get_transform", 0);
+
+            void* transform = RuntimeInvoke(getTrans, camera, nullptr, nullptr);
+            if (!transform) return;
+
+            // Transform.set_position(Vector3)
+            static Il2CppMethod* setPos = nullptr;
+            if (!setPos) setPos = GetMethod((Il2CppClass*)g_TransformClass, "set_position", 1);
+
+            if (setPos) {
+                void* params[1] = { &pos };
+                RuntimeInvoke(setPos, transform, params, nullptr);
+            }
+        }
+
+        Quaternion GetCameraRotation(void* camera) {
+            if (!camera) return {0,0,0,1};
+            if (!g_TransformClass) g_TransformClass = GetClass("UnityEngine", "Transform");
+
+            static Il2CppMethod* getTrans = nullptr;
+            if (!getTrans) getTrans = GetMethod((Il2CppClass*)g_ComponentClass, "get_transform", 0);
+
+            void* transform = RuntimeInvoke(getTrans, camera, nullptr, nullptr);
+            if (!transform) return {0,0,0,1};
+
+            // Transform.get_rotation()
+            static Il2CppMethod* getRot = nullptr;
+            if (!getRot) getRot = GetMethod((Il2CppClass*)g_TransformClass, "get_rotation", 0);
+
+            Quaternion res = {0,0,0,1};
+            if (getRot) {
+                void* ret = RuntimeInvoke(getRot, transform, nullptr, nullptr);
+                if (ret) {
+                    res = *(Quaternion*)((char*)ret + 0x10);
+                }
+            }
+            return res;
+        }
+
+        Vector3 GetCameraRotationEuler(void* camera) {
+            if (!camera) return {0,0,0};
+            if (!g_TransformClass) g_TransformClass = GetClass("UnityEngine", "Transform");
+
+            static Il2CppMethod* getTrans = nullptr;
+            if (!getTrans) getTrans = GetMethod((Il2CppClass*)g_ComponentClass, "get_transform", 0);
+
+            void* transform = RuntimeInvoke(getTrans, camera, nullptr, nullptr);
+            if (!transform) return {0,0,0};
+
+            // Transform.get_eulerAngles()
+            static Il2CppMethod* getEuler = nullptr;
+            if (!getEuler) getEuler = GetMethod((Il2CppClass*)g_TransformClass, "get_eulerAngles", 0);
+
+            Vector3 res = {0,0,0};
+            if (getEuler) {
+                void* ret = RuntimeInvoke(getEuler, transform, nullptr, nullptr);
+                if (ret) {
+                    res = *(Vector3*)((char*)ret + 0x10);
+                }
+            }
+            return res;
+        }
+
+        void SetCameraRotation(void* camera, Quaternion rot) {
+            if (!camera) return;
+            if (!g_TransformClass) g_TransformClass = GetClass("UnityEngine", "Transform");
+
+            static Il2CppMethod* getTrans = nullptr;
+            if (!getTrans) getTrans = GetMethod((Il2CppClass*)g_ComponentClass, "get_transform", 0);
+
+            void* transform = RuntimeInvoke(getTrans, camera, nullptr, nullptr);
+            if (!transform) return;
+
+            // Transform.set_rotation(Quaternion)
+            static Il2CppMethod* setRot = nullptr;
+            if (!setRot) setRot = GetMethod((Il2CppClass*)g_TransformClass, "set_rotation", 1);
+
+            if (setRot) {
+                void* params[1] = { &rot };
+                RuntimeInvoke(setRot, transform, params, nullptr);
+            }
+        }
+
+        Vector3 GetCameraForward(void* camera) {
+            if (!camera) return {0,0,1};
+            if (!g_TransformClass) g_TransformClass = GetClass("UnityEngine", "Transform");
+
+            static Il2CppMethod* getTrans = nullptr;
+            if (!getTrans) getTrans = GetMethod((Il2CppClass*)g_ComponentClass, "get_transform", 0);
+
+            void* transform = RuntimeInvoke(getTrans, camera, nullptr, nullptr);
+            if (!transform) return {0,0,1};
+
+            // Transform.get_forward()
+            static Il2CppMethod* getFwd = nullptr;
+            if (!getFwd) getFwd = GetMethod((Il2CppClass*)g_TransformClass, "get_forward", 0);
+
+            Vector3 res = {0,0,1};
+            if (getFwd) {
+                void* ret = RuntimeInvoke(getFwd, transform, nullptr, nullptr);
+                if (ret) {
+                    res = *(Vector3*)((char*)ret + 0x10);
+                }
+            }
+            return res;
+        }
+
+        // ============================================================
+        // SAFE TRANSFORM ACCESS (Using Unity icalls)
+        // Direct memory access causes crashes - use proper Unity API
+        // ============================================================
+
+        // Icall function pointers for Transform
+        typedef void(__stdcall* fnGetPositionInjected)(void* transform, Vector3* ret);
+        typedef void(__stdcall* fnSetPositionInjected)(void* transform, const Vector3* value);
+        typedef void(__stdcall* fnGetRotationInjected)(void* transform, Quaternion* ret);
+        typedef void(__stdcall* fnSetRotationInjected)(void* transform, const Quaternion* value);
+        
+        static fnGetPositionInjected s_GetPositionInjected = nullptr;
+        static fnSetPositionInjected s_SetPositionInjected = nullptr;
+        static fnGetRotationInjected s_GetRotationInjected = nullptr;
+        static fnSetRotationInjected s_SetRotationInjected = nullptr;
+
+        void* GetCameraTransform(void* camera) {
+            if (!camera) return nullptr;
+            if (!g_ComponentClass) g_ComponentClass = GetClass("UnityEngine", "Component");
+
+            static Il2CppMethod* getTrans = nullptr;
+            if (!getTrans) getTrans = GetMethod((Il2CppClass*)g_ComponentClass, "get_transform", 0);
+
+            return RuntimeInvoke(getTrans, camera, nullptr, nullptr);
+        }
+
+        Vector3 GetTransformPositionFast(void* transform) {
+            if (!transform) return {0,0,0};
+            
+            // Initialize icall if needed
+            if (!s_GetPositionInjected) {
+                if (!resolve_icall) resolve_icall = (t_il2cpp_resolve_icall)GetProcAddress(GetModuleHandleA("GameAssembly.dll"), "il2cpp_resolve_icall");
+                if (resolve_icall) {
+                    s_GetPositionInjected = (fnGetPositionInjected)resolve_icall("UnityEngine.Transform::get_position_Injected(UnityEngine.Vector3&)");
+                }
+            }
+            
+            Vector3 result = {0,0,0};
+            if (s_GetPositionInjected) {
+                __try {
+                    s_GetPositionInjected(transform, &result);
+                }
+                __except (EXCEPTION_EXECUTE_HANDLER) {
+                    return {0,0,0};
+                }
+            } else {
+                // Fallback to RuntimeInvoke method
+                return GetTransformPosition(transform);
+            }
+            return result;
+        }
+
+        void SetTransformPositionFast(void* transform, Vector3 pos) {
+            if (!transform) return;
+            
+            // Initialize icall if needed
+            if (!s_SetPositionInjected) {
+                if (!resolve_icall) resolve_icall = (t_il2cpp_resolve_icall)GetProcAddress(GetModuleHandleA("GameAssembly.dll"), "il2cpp_resolve_icall");
+                if (resolve_icall) {
+                    s_SetPositionInjected = (fnSetPositionInjected)resolve_icall("UnityEngine.Transform::set_position_Injected(UnityEngine.Vector3&)");
+                }
+            }
+            
+            if (s_SetPositionInjected) {
+                __try {
+                    s_SetPositionInjected(transform, &pos);
+                }
+                __except (EXCEPTION_EXECUTE_HANDLER) {
+                    // Silent fail
+                }
+            }
+        }
+
+        Quaternion GetTransformRotationFast(void* transform) {
+            if (!transform) return {0,0,0,1};
+            
+            // Initialize icall if needed
+            if (!s_GetRotationInjected) {
+                if (!resolve_icall) resolve_icall = (t_il2cpp_resolve_icall)GetProcAddress(GetModuleHandleA("GameAssembly.dll"), "il2cpp_resolve_icall");
+                if (resolve_icall) {
+                    s_GetRotationInjected = (fnGetRotationInjected)resolve_icall("UnityEngine.Transform::get_rotation_Injected(UnityEngine.Quaternion&)");
+                }
+            }
+            
+            Quaternion result = {0,0,0,1};
+            if (s_GetRotationInjected) {
+                __try {
+                    s_GetRotationInjected(transform, &result);
+                }
+                __except (EXCEPTION_EXECUTE_HANDLER) {
+                    return {0,0,0,1};
+                }
+            }
+            return result;
+        }
+
+        void SetTransformRotationFast(void* transform, Quaternion rot) {
+            if (!transform) return;
+            
+            // Initialize icall if needed
+            if (!s_SetRotationInjected) {
+                if (!resolve_icall) resolve_icall = (t_il2cpp_resolve_icall)GetProcAddress(GetModuleHandleA("GameAssembly.dll"), "il2cpp_resolve_icall");
+                if (resolve_icall) {
+                    s_SetRotationInjected = (fnSetRotationInjected)resolve_icall("UnityEngine.Transform::set_rotation_Injected(UnityEngine.Quaternion&)");
+                }
+            }
+            
+            if (s_SetRotationInjected) {
+                __try {
+                    s_SetRotationInjected(transform, &rot);
+                }
+                __except (EXCEPTION_EXECUTE_HANDLER) {
+                    // Silent fail
+                }
+            }
+        }
+
+        // ============================================================
+        // FLY HELPERS - Based on dump analysis
+        // kiriMoveBasic structure:
+        // - feet (Transform) at offset 0x40
+        // ============================================================
+
+        void* GetPlayerFeetTransform() {
+            void* move = GetPlayerMovement();
+            if (!move || !IsValidPtr(move)) return nullptr;
+
+            __try {
+                // kiriMoveBasic.feet is at offset 0x40
+                void* feet = *(void**)((uintptr_t)move + 0x40);
+                if (!IsValidPtr(feet)) return nullptr;
+                return feet;
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER) {
+                return nullptr;
+            }
+        }
+
+        void SetPlayerPositionDirect(Vector3 pos) {
+            void* feet = GetPlayerFeetTransform();
+            if (!feet) return;
+
+            // Use safe icall method
+            SetTransformPositionFast(feet, pos);
         }
 
     } // namespace game

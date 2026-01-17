@@ -3,5 +3,6 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
+  <Project Path="Injector\Injector.vcxproj" Id="4a2b7c9d-3e5f-1011-8282-1234567890ab" />
   <Project Path="MiSide-Cheat/MiSide-Cheat.vcxproj" Id="3360322b-6f8c-4b18-b4b3-1b8c7030a37c" />
 </Solution>
