@@ -4,6 +4,8 @@
 
 # MiSide Zero - Internal Cheat
 
+**Version:** Alpha 0.7
+
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-7289da?logo=discord&logoColor=white)](https://discord.com/invite/dUCNKkS2Ve)
 [![GitHub](https://img.shields.io/badge/GitHub-hutaoshusband-181717?logo=github)](https://github.com/hutaoshusband)
 
@@ -15,9 +17,11 @@
 
 ## 🎮 Showcase
 
+[![Showcase Video](https://img.shields.io/badge/YouTube-Showcase%20Video-red?style=for-the-badge&logo=youtube)](https://youtu.be/NVwCwrornMg)
+
 ![Cheat Showcase](https://github.com/hutaoshusband/WBB-MiSide-Zero/blob/main/Screenshots/Showcase1.png?raw=true)
 
-*ESP, Chams, and Debug View in action - Track Mita through walls!*
+*ESP, Chams, and Debug View in action - [Watch the Showcase Video on YouTube!](https://youtu.be/NVwCwrornMg)*
 
 ---
 

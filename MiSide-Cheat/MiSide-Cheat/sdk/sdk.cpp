@@ -644,79 +644,122 @@ namespace sdk {
         }
 
         void* FindShader(const char* shaderName) {
+            if (!shaderName) return nullptr;
             if (!g_ShaderClass) g_ShaderClass = GetClass("UnityEngine", "Shader");
+            if (!g_ShaderClass) return nullptr;
+
             static Il2CppMethod* findMethod = nullptr;
             if (!findMethod) findMethod = GetMethod((Il2CppClass*)g_ShaderClass, "Find", 1);
-            
-            Il2CppString* str = nullptr; // Need string creation? 
-            
-            static void* (*il2cpp_string_new)(const char*) = nullptr;
-            if (!il2cpp_string_new) {
-                il2cpp_string_new = (void* (*)(const char*))GetProcAddress(g_GameAssembly, "il2cpp_string_new");
-            }
-            if (!il2cpp_string_new) return nullptr;
+            if (!findMethod) return nullptr;
 
-            void* strObj = il2cpp_string_new(shaderName);
-            void* params[1] = { strObj };
-            
-            return RuntimeInvoke(findMethod, nullptr, params, nullptr);
+            __try {
+                static void* (*il2cpp_string_new)(const char*) = nullptr;
+                if (!il2cpp_string_new) {
+                    il2cpp_string_new = (void* (*)(const char*))GetProcAddress(g_GameAssembly, "il2cpp_string_new");
+                }
+                if (!il2cpp_string_new) return nullptr;
+
+                void* strObj = il2cpp_string_new(shaderName);
+                if (!strObj) return nullptr;
+
+                void* params[1] = { strObj };
+                void* result = RuntimeInvoke(findMethod, nullptr, params, nullptr);
+
+                if (result && !IsValidPtr(result)) return nullptr;
+                return result;
+            }
+            __except(EXCEPTION_EXECUTE_HANDLER) {
+                return nullptr;
+            }
         }
 
         void* CreateMaterial(void* shader) {
-            if (!shader) return nullptr;
+            if (!shader || !IsValidPtr(shader)) return nullptr;
             if (!g_MaterialClass) g_MaterialClass = GetClass("UnityEngine", "Material");
-            
-            
-            static void* (*il2cpp_object_new)(Il2CppClass*) = nullptr;
-             if (!il2cpp_object_new) {
-                il2cpp_object_new = (void* (*)(Il2CppClass*))GetProcAddress(g_GameAssembly, "il2cpp_object_new");
+            if (!g_MaterialClass) return nullptr;
+
+            __try {
+                static void* (*il2cpp_object_new)(Il2CppClass*) = nullptr;
+                if (!il2cpp_object_new) {
+                    il2cpp_object_new = (void* (*)(Il2CppClass*))GetProcAddress(g_GameAssembly, "il2cpp_object_new");
+                }
+                if (!il2cpp_object_new) return nullptr;
+
+                void* matObj = il2cpp_object_new((Il2CppClass*)g_MaterialClass);
+                if (!matObj || !IsValidPtr(matObj)) return nullptr;
+
+                static Il2CppMethod* ctor = nullptr;
+                if (!ctor) ctor = GetMethod((Il2CppClass*)g_MaterialClass, ".ctor", 1); // (Shader)
+                if (!ctor) return nullptr;
+
+                void* params[1] = { shader };
+                void* result = RuntimeInvoke(ctor, matObj, params, nullptr);
+
+                // Return the material object if construction succeeded
+                return matObj;
             }
-            
-            void* matObj = il2cpp_object_new((Il2CppClass*)g_MaterialClass);
-            
-            static Il2CppMethod* ctor = nullptr;
-            if (!ctor) ctor = GetMethod((Il2CppClass*)g_MaterialClass, ".ctor", 1); // (Shader)
-            
-            void* params[1] = { shader };
-            RuntimeInvoke(ctor, matObj, params, nullptr);
-            
-            return matObj;
+            __except(EXCEPTION_EXECUTE_HANDLER) {
+                return nullptr;
+            }
         }
 
         void* GetMaterial(void* renderer) {
-            if (!renderer) return nullptr;
+            if (!renderer || !IsValidPtr(renderer)) return nullptr;
             if (!g_RendererClass) g_RendererClass = GetClass("UnityEngine", "Renderer");
+            if (!g_RendererClass) return nullptr;
 
             static Il2CppMethod* getMat = nullptr;
             if (!getMat) getMat = GetMethod((Il2CppClass*)g_RendererClass, "get_material", 0);
+            if (!getMat) return nullptr;
 
-            return RuntimeInvoke(getMat, renderer, nullptr, nullptr);
+            __try {
+                void* result = RuntimeInvoke(getMat, renderer, nullptr, nullptr);
+                if (result && !IsValidPtr(result)) return nullptr;
+                return result;
+            }
+            __except(EXCEPTION_EXECUTE_HANDLER) {
+                return nullptr;
+            }
         }
 
         void SetMaterial(void* renderer, void* material) {
-             if (!renderer) return;
-             if (!g_RendererClass) g_RendererClass = GetClass("UnityEngine", "Renderer");
-             
-             static Il2CppMethod* setMat = nullptr;
-             if (!setMat) setMat = GetMethod((Il2CppClass*)g_RendererClass, "set_material", 1);
-             
-             void* params[1] = { material };
-             RuntimeInvoke(setMat, renderer, params, nullptr);
+            if (!renderer || !IsValidPtr(renderer)) return;
+            if (!g_RendererClass) g_RendererClass = GetClass("UnityEngine", "Renderer");
+            if (!g_RendererClass) return;
+
+            static Il2CppMethod* setMat = nullptr;
+            if (!setMat) setMat = GetMethod((Il2CppClass*)g_RendererClass, "set_material", 1);
+            if (!setMat) return;
+
+            __try {
+                void* params[1] = { material };
+                RuntimeInvoke(setMat, renderer, params, nullptr);
+            }
+            __except(EXCEPTION_EXECUTE_HANDLER) {
+                // Silently handle exceptions during set_material
+            }
         }
 
         void SetMaterialColor(void* material, float r, float g, float b, float a) {
-            if (!material) return;
-             if (!g_MaterialClass) g_MaterialClass = GetClass("UnityEngine", "Material");
-             
-             static Il2CppMethod* setError = nullptr;
-             static Il2CppMethod* setColor = nullptr;
-             if (!setColor) setColor = GetMethod((Il2CppClass*)g_MaterialClass, "set_color", 1);
-             
-             struct Color { float r,g,b,a; };
-             Color c = {r,g,b,a};
-             void* params[1] = { &c };
-             
-             RuntimeInvoke(setColor, material, params, nullptr);
+            if (!material || !IsValidPtr(material)) return;
+            if (!g_MaterialClass) g_MaterialClass = GetClass("UnityEngine", "Material");
+            if (!g_MaterialClass) return;
+
+            static Il2CppMethod* setError = nullptr;
+            static Il2CppMethod* setColor = nullptr;
+            if (!setColor) setColor = GetMethod((Il2CppClass*)g_MaterialClass, "set_color", 1);
+            if (!setColor) return;
+
+            __try {
+                struct Color { float r,g,b,a; };
+                Color c = {r,g,b,a};
+                void* params[1] = { &c };
+
+                RuntimeInvoke(setColor, material, params, nullptr);
+            }
+            __except(EXCEPTION_EXECUTE_HANDLER) {
+                // Silently handle exceptions during set_color
+            }
         }
 
         void SetMaterialInt(void* material, const char* propName, int value) {
