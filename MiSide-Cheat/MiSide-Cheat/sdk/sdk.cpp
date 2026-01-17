@@ -23,9 +23,6 @@ namespace sdk {
         return g_LastLog.c_str();
     }
 
-    // ============================================================
-    // IL2CPP Function Pointers
-    // ============================================================
     typedef Il2CppDomain* (*t_il2cpp_domain_get)();
     typedef Il2CppThread* (*t_il2cpp_thread_attach)(Il2CppDomain*);
     typedef void* (*t_il2cpp_resolve_icall)(const char*);
@@ -61,7 +58,6 @@ namespace sdk {
     HMODULE g_GameAssembly = nullptr;
     bool g_Initialized = false;
 
-    // Basic pointer validation
     bool IsValidPtr(void* ptr) {
         if (!ptr || (uintptr_t)ptr < 0x10000 || (uintptr_t)ptr > 0x7FFFFFFFFFFF) return false;
         
@@ -74,14 +70,11 @@ namespace sdk {
         return false;
     }
     
-    // Thread-local flag to track if this thread is attached to IL2CPP runtime
     static thread_local bool t_ThreadAttached = false;
     static thread_local Il2CppThread* t_AttachedThread = nullptr;
     
-    // Mutex for protecting static pointer caching
     static std::mutex g_SDKMutex;
     
-    // Safe memory read with exception handling
     template<typename T>
     bool SafeRead(void* address, T& outValue) {
         if (!IsValidPtr(address)) return false;
@@ -118,7 +111,6 @@ namespace sdk {
         LOAD_PROC(il2cpp_class_get_type);
         LOAD_PROC(il2cpp_type_get_object);
 
-        // Attach the initializing thread
         Il2CppDomain* domain = il2cpp_domain_get();
         if (domain) {
             t_AttachedThread = il2cpp_thread_attach(domain);
@@ -134,17 +126,14 @@ namespace sdk {
     }
     
     bool AttachCurrentThread() {
-        // Already attached on this thread
         if (t_ThreadAttached && t_AttachedThread) {
             return true;
         }
         
-        // SDK not initialized
         if (!g_Initialized || !il2cpp_thread_attach || !il2cpp_domain_get) {
             return false;
         }
         
-        // Attach this thread to the IL2CPP runtime
         Il2CppDomain* domain = il2cpp_domain_get();
         if (!domain) {
             return false;
@@ -216,9 +205,6 @@ namespace sdk {
         return il2cpp_type_get_object(type);
     }
 
-    // ===========================================
-    // GAME IMPL
-    // ===========================================
 
     namespace game {
         void* g_PlayerManagerClass = nullptr;
@@ -273,7 +259,6 @@ namespace sdk {
                 return nullptr;
             }
 
-            // Don't cache field - it might fail initially and never recover
             Il2CppField* moveField = GetField((Il2CppClass*)g_PlayerManagerClass, "move");
             if (!moveField) {
                 Log("GetPlayerMovement: 'move' field not found in PlayerManager");
@@ -303,7 +288,6 @@ namespace sdk {
              void* systemType = GetSystemType(targetClass);
              if (!systemType) return nullptr;
 
-             // RVA: 0x19359E0 for UnityEngine.Object.FindObjectOfType(Type)
              static uintptr_t rva = 0x19359E0;
              static void* (*FindObjectOfTypeFunc)(void*) = nullptr;
              
@@ -315,8 +299,6 @@ namespace sdk {
         }
 
         void* GetMitaManager() {
-             // Don't cache permanently - Mita can be destroyed/recreated
-             // Use a simple timer instead
              static void* mitaCached = nullptr;
              static int refreshTimer = 0;
              
@@ -386,7 +368,6 @@ namespace sdk {
         float GetSpeed(void* movement) {
             if (!IsValidPtr(movement)) return 0.0f;
             __try {
-                // kiriMoveBasic: walkSpeed at 0x1C.
                 return *(float*)((uintptr_t)movement + 0x1C);
             }
             __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -397,13 +378,10 @@ namespace sdk {
         void SetSpeed(void* movement, float speed) {
             if (!IsValidPtr(movement)) return;
             __try {
-                // kiriMoveBasic: walkSpeed at 0x1C.
                 *(float*)((uintptr_t)movement + 0x1C) = speed;
-                // Also ensure canMove is on (0x18)
                 *(bool*)((uintptr_t)movement + 0x18) = true;
             }
             __except (EXCEPTION_EXECUTE_HANDLER) {
-                // Log or ignore
             }
         }
 
@@ -530,9 +508,6 @@ namespace sdk {
             return GetTransformPosition(transform);
         }
 
-        // ===========================================
-        // MANUAL W2S IMPLEMENTATION
-        // ===========================================
         
         typedef void(__fastcall* t_get_worldToCameraMatrix_Injected)(void* camera, Matrix4x4* ret);
         typedef void(__fastcall* t_get_projectionMatrix_Injected)(void* camera, Matrix4x4* ret);
@@ -561,17 +536,13 @@ namespace sdk {
         }
 
         Vector3 WorldToScreen(Vector3 worldPos) {
-            // Simple approach: get camera every frame but prefer player camera
             void* playerCam = GetPlayerCamera();
             void* mainCam = GetMainCamera();
             
-            // Use player camera if available, otherwise main camera
             void* cam = playerCam ? playerCam : mainCam;
             
-            // Validate camera pointer
             if (!cam || !IsValidPtr(cam)) return {-10000, -10000, -1};
 
-            // Get matrices with exception handling
             Matrix4x4 view = {0};
             Matrix4x4 proj = {0};
             
@@ -580,33 +551,26 @@ namespace sdk {
                 proj = GetProjectionMatrix(cam);
             }
             __except(EXCEPTION_EXECUTE_HANDLER) {
-                // Failed to get matrices
                 return {-10000, -10000, -1};
             }
 
-            // Multiply projection and view matrices
             Matrix4x4 vp = Matrix4x4::Multiply(proj, view);
 
-            // Transform world position to clip space
             float x = worldPos.x * vp(0, 0) + worldPos.y * vp(0, 1) + worldPos.z * vp(0, 2) + vp(0, 3);
             float y = worldPos.x * vp(1, 0) + worldPos.y * vp(1, 1) + worldPos.z * vp(1, 2) + vp(1, 3);
             float z = worldPos.x * vp(2, 0) + worldPos.y * vp(2, 1) + worldPos.z * vp(2, 2) + vp(2, 3);
             float w = worldPos.x * vp(3, 0) + worldPos.y * vp(3, 1) + worldPos.z * vp(3, 2) + vp(3, 3);
 
-            // Check if point is behind camera
             if (w < 0.01f) return {-10000, -10000, -1};
 
-            // Perspective divide
             float invW = 1.0f / w;
             float ndcX = x * invW;
             float ndcY = y * invW;
             float ndcZ = z * invW;
 
-            // Convert NDC to screen coordinates - validate ImGui is initialized
             __try {
                 ImGuiIO& io = ImGui::GetIO();
                 
-                // Validate display size is reasonable
                 if (io.DisplaySize.x <= 0.0f || io.DisplaySize.y <= 0.0f) {
                     return {-10000, -10000, -1};
                 }
@@ -620,14 +584,10 @@ namespace sdk {
                 return screen;
             }
             __except(EXCEPTION_EXECUTE_HANDLER) {
-                // ImGui not initialized or invalid IO state
                 return {-10000, -10000, -1};
             }
         }
 
-        // ===========================================
-        // CHAMS HELPERS
-        // ===========================================
 
         void RecursiveFindRenderers(void* transform, std::vector<void*>& results) {
             if (!transform) return;
@@ -636,23 +596,14 @@ namespace sdk {
             if (!g_RendererClass) g_RendererClass = GetClass("UnityEngine", "Renderer");
             if (!g_TransformClass) g_TransformClass = GetClass("UnityEngine", "Transform");
 
-            // Check if this transform has a renderer
             static Il2CppMethod* getComp = nullptr;
             if (!getComp) getComp = GetMethod((Il2CppClass*)g_ComponentClass, "GetComponent", 1); // Generic? No, use Type
-            // Actually GetComponent(Type) RVA is 0x192E210?
-            // Let's use RuntimeInvoke on 'GetComponent(Type)'
             
-            // We need Type object.
             void* rendererType = GetSystemType((Il2CppClass*)g_RendererClass);
             
-            // GetComponent(Type)
             static Il2CppMethod* getCompType = nullptr;
             if (!getCompType) getCompType = GetMethod((Il2CppClass*)g_ComponentClass, "GetComponent", 1); // overload with Type argument?
             
-            // To call GetComponent(Type), we need to find it by name and args count
-            // Note: GetComponent has many overloads. 
-            // 0 args = Generic (can't use easily)
-            // 1 arg = Type typeof(T) usually.
             
             void* params[1] = { rendererType };
             void* renderer = RuntimeInvoke(getCompType, transform, params, nullptr);
@@ -660,7 +611,6 @@ namespace sdk {
                 results.push_back(renderer);
             }
 
-            // Iterate children
             static Il2CppMethod* getChildCount = nullptr;
             static Il2CppMethod* getChild = nullptr;
             if (!getChildCount) getChildCount = GetMethod((Il2CppClass*)g_TransformClass, "get_childCount", 0);
@@ -681,9 +631,7 @@ namespace sdk {
             std::vector<void*> results;
             if (!gameObjectOrComponent) return results;
 
-            // Get Transform first
             void* transform = nullptr;
-            // Check if it's already a transform? Hard to tell. Assume Component.
             if (!g_ComponentClass) g_ComponentClass = GetClass("UnityEngine", "Component");
             static Il2CppMethod* getTrans = nullptr;
             if (!getTrans) getTrans = GetMethod((Il2CppClass*)g_ComponentClass, "get_transform", 0);
@@ -701,11 +649,6 @@ namespace sdk {
             if (!findMethod) findMethod = GetMethod((Il2CppClass*)g_ShaderClass, "Find", 1);
             
             Il2CppString* str = nullptr; // Need string creation? 
-            // In il2cpp, strings are objects. We need il2cpp_string_new
-            // But we don't have it imported in sdk.cpp explicitly?
-            // It should be exported by GameAssembly. 
-            // Actually, we can just pass a C-string if we are lucky? NO.
-            // We need to resolve il2cpp_string_new.
             
             static void* (*il2cpp_string_new)(const char*) = nullptr;
             if (!il2cpp_string_new) {
@@ -723,12 +666,7 @@ namespace sdk {
             if (!shader) return nullptr;
             if (!g_MaterialClass) g_MaterialClass = GetClass("UnityEngine", "Material");
             
-            // We need to call Constructor. RuntimeInvoke on .ctor?
-            // But we need to allocate the object first? 
-            // In Unity/Il2Cpp, creating a new object is usually done via il2cpp_object_new then constructor.
-            // But Material(Shader) might be special.
             
-            // Better way: use object_new
             static void* (*il2cpp_object_new)(Il2CppClass*) = nullptr;
              if (!il2cpp_object_new) {
                 il2cpp_object_new = (void* (*)(Il2CppClass*))GetProcAddress(g_GameAssembly, "il2cpp_object_new");
@@ -771,12 +709,9 @@ namespace sdk {
              if (!g_MaterialClass) g_MaterialClass = GetClass("UnityEngine", "Material");
              
              static Il2CppMethod* setError = nullptr;
-             // Check if "SetColor" exists or property "color"?
-             // Material has "set_color"
              static Il2CppMethod* setColor = nullptr;
              if (!setColor) setColor = GetMethod((Il2CppClass*)g_MaterialClass, "set_color", 1);
              
-             // Color struct? We need to pass it.
              struct Color { float r,g,b,a; };
              Color c = {r,g,b,a};
              void* params[1] = { &c };
@@ -824,21 +759,17 @@ namespace sdk {
 
         void SetMaterialZTestAlways(void* material) {
             if (!material) return;
-            // ZTest value 8 = CompareFunction.Always (draws through walls)
             SetMaterialInt(material, "_ZTest", 8);
-            // Also disable ZWrite so it doesn't mess with depth buffer
             SetMaterialInt(material, "_ZWrite", 0);
         }
 
         void SetMaterialGlow(void* material, float r, float g, float b, float intensity) {
             if (!material) return;
-            // Set emission color (HDR)
             struct Color { float r,g,b,a; };
             Color emissionColor = { r * intensity, g * intensity, b * intensity, 1.0f };
             
             if (!g_MaterialClass) g_MaterialClass = GetClass("UnityEngine", "Material");
             
-            // Try SetColor with _EmissionColor property name
             static Il2CppMethod* setColor = nullptr;
             if (!setColor) setColor = GetMethod((Il2CppClass*)g_MaterialClass, "SetColor", 2);
             
@@ -854,7 +785,6 @@ namespace sdk {
                 }
             }
             
-            // Try to enable emission keyword
             static Il2CppMethod* enableKeyword = nullptr;
             if (!enableKeyword) enableKeyword = GetMethod((Il2CppClass*)g_MaterialClass, "EnableKeyword", 1);
             if (enableKeyword) {
@@ -872,7 +802,6 @@ namespace sdk {
 
         void SetMaterialEmissionColor(void* material, float r, float g, float b, float a) {
             if (!material) return;
-            // Use the new SetMaterialGlow with intensity 1.0
             SetMaterialGlow(material, r, g, b, 1.0f);
         }
 
@@ -880,11 +809,9 @@ namespace sdk {
             if (!material) return;
             if (!g_MaterialClass) g_MaterialClass = GetClass("UnityEngine", "Material");
             
-            // Try to find SetFloat method with "_GlowStrength" property
             static Il2CppMethod* setFloat = nullptr;
             if (!setFloat) setFloat = GetMethod((Il2CppClass*)g_MaterialClass, "SetFloat", 2);
             
-            // Create string for property name
             static void* (*il2cpp_string_new)(const char*) = nullptr;
             if (!il2cpp_string_new) {
                 il2cpp_string_new = (void* (*)(const char*))GetProcAddress(g_GameAssembly, "il2cpp_string_new");
@@ -899,7 +826,6 @@ namespace sdk {
         BodyPart GetRendererBodyPart(void* renderer) {
             if (!renderer) return BodyPart_None;
             
-            // Get transform of renderer
             if (!g_ComponentClass) g_ComponentClass = GetClass("UnityEngine", "Component");
             static Il2CppMethod* getTrans = nullptr;
             if (!getTrans) getTrans = GetMethod((Il2CppClass*)g_ComponentClass, "get_transform", 0);
@@ -907,7 +833,6 @@ namespace sdk {
             void* transform = RuntimeInvoke(getTrans, renderer, nullptr, nullptr);
             if (!transform) return BodyPart_None;
             
-            // Get transform name
             if (!g_TransformClass) g_TransformClass = GetClass("UnityEngine", "Transform");
             static Il2CppMethod* getName = nullptr;
             if (!getName) getName = GetMethod((Il2CppClass*)g_TransformClass, "get_name", 0);
@@ -915,15 +840,12 @@ namespace sdk {
             void* nameObj = RuntimeInvoke(getName, transform, nullptr, nullptr);
             if (!nameObj) return BodyPart_None;
             
-            // Get string value from Il2CppString
             const char* name = *(const char**)((char*)nameObj + 0x10);
             if (!name) return BodyPart_None;
             
-            // Convert to lowercase for comparison
             std::string nameStr(name);
             for (char& c : nameStr) c = tolower(c);
             
-            // Check for body part keywords
             if (nameStr.find("head") != std::string::npos ||
                 nameStr.find("hair") != std::string::npos ||
                 nameStr.find("face") != std::string::npos) {
@@ -953,10 +875,8 @@ namespace sdk {
             std::vector<void*> results;
             if (!gameObject || part == BodyPart_None) return results;
             
-            // Get all renderers
             std::vector<void*> allRenderers = GetRenderers(gameObject);
             
-            // Filter by body part
             for (void* renderer : allRenderers) {
                 if (GetRendererBodyPart(renderer) == part) {
                     results.push_back(renderer);
@@ -966,38 +886,27 @@ namespace sdk {
             return results;
         }
         
-        // ============================================================
-        // Mita Control / NavMeshAgent
-        // ============================================================
         
         void* GetMitaNavMeshAgent() {
-            // Get Mita via Animator
             void* animator = GetMitaAnimator();
             if (!animator) return nullptr;
             
-            // Helper to get transform
             static void* (*get_transform)(void*) = nullptr;
             if (!get_transform && sdk::il2cpp_resolve_icall) 
                 get_transform = (void* (*)(void*))sdk::il2cpp_resolve_icall("UnityEngine.Component::get_transform");
             
-            // Helper to get parent
             static void* (*get_parent)(void*) = nullptr;
             if (!get_parent && sdk::il2cpp_resolve_icall) 
                 get_parent = (void* (*)(void*))sdk::il2cpp_resolve_icall("UnityEngine.Transform::get_parent");
                 
-            // Helper to get gameObject
             static void* (*get_gameObject)(void*) = nullptr;
             if (!get_gameObject && sdk::il2cpp_resolve_icall) 
                 get_gameObject = (void* (*)(void*))sdk::il2cpp_resolve_icall("UnityEngine.Component::get_gameObject");
 
             if (!get_transform || !get_gameObject) return nullptr;
             
-            // Find Root Transform
             void* transform = get_transform(animator);
             if (transform && get_parent) {
-                // Traverse up to find potential root with NavMeshAgent
-                // Usually Mita root -> Model (Animator)
-                // So checking parent of animator's transform should be enough
                 void* parent = get_parent(transform);
                 if (parent) transform = parent; // Check parent (Root)
             }
@@ -1005,7 +914,6 @@ namespace sdk {
             void* gameObject = get_gameObject(transform);
             if (!gameObject) return nullptr;
             
-            // GameObject.GetComponent(Type)
             static void* (*get_component)(void*, void*) = nullptr;
             if (!get_component && sdk::il2cpp_resolve_icall) 
                 get_component = (void* (*)(void*, void*))sdk::il2cpp_resolve_icall("UnityEngine.GameObject::GetComponent");
@@ -1053,19 +961,11 @@ namespace sdk {
             return 0.0f;
         }
         
-        // ============================================================
-        // Outfit Changer Implementation
-        // Based on MitaCycle/MitaCycler dump analysis:
-        // - MitaCycle.themeOptions (List<MitaCycler>) at offset 0x30
-        // - MitaCycle.currentIndex (int) at offset 0x80
-        // - MitaCycler.currentMita (GameObject) at offset 0x20
-        // ============================================================
         
         static void* g_CachedMitaCycle = nullptr;
         static int g_MitaCycleRefreshTimer = 0;
         
         void* GetMitaCycle() {
-            // Refresh cache periodically
             if (g_MitaCycleRefreshTimer <= 0 || !g_CachedMitaCycle) {
                 g_CachedMitaCycle = FindObjectOfType("MitaCycle");
                 g_MitaCycleRefreshTimer = 120; // ~2s at 60fps
@@ -1079,11 +979,9 @@ namespace sdk {
             void* mitaCycle = GetMitaCycle();
             if (!mitaCycle || !IsValidPtr(mitaCycle)) return 0;
             
-            // themeOptions is at offset 0x30, it's a List<MitaCycler>
             void* themeOptions = *(void**)((uintptr_t)mitaCycle + 0x30);
             if (!themeOptions || !IsValidPtr(themeOptions)) return 0;
             
-            // List<T>._size is typically at offset 0x18 in IL2CPP
             int count = *(int*)((uintptr_t)themeOptions + 0x18);
             return count;
         }
@@ -1092,7 +990,6 @@ namespace sdk {
             void* mitaCycle = GetMitaCycle();
             if (!mitaCycle || !IsValidPtr(mitaCycle)) return -1;
             
-            // currentIndex is at offset 0x80
             int index = *(int*)((uintptr_t)mitaCycle + 0x80);
             return index;
         }
@@ -1122,19 +1019,15 @@ namespace sdk {
             int currentIndex = GetCurrentOutfit();
             if (index == currentIndex) return true; // Already at this outfit
             
-            // Get themeOptions list
             void* themeOptions = *(void**)((uintptr_t)mitaCycle + 0x30);
             if (!themeOptions || !IsValidPtr(themeOptions)) return false;
             
-            // List<T>._items is at offset 0x10 (array of references)
             void** items = *(void***)((uintptr_t)themeOptions + 0x10);
             if (!items) return false;
             
-            // Disable current outfit's GameObject
             if (currentIndex >= 0 && currentIndex < count) {
                 void* currentCycler = items[currentIndex];
                 if (currentCycler && IsValidPtr(currentCycler)) {
-                    // currentMita GameObject is at offset 0x20
                     void* currentMita = *(void**)((uintptr_t)currentCycler + 0x20);
                     if (currentMita && IsValidPtr(currentMita)) {
                         SetGameObjectActive(currentMita, false);
@@ -1142,7 +1035,6 @@ namespace sdk {
                 }
             }
             
-            // Enable new outfit's GameObject
             void* newCycler = items[index];
             if (newCycler && IsValidPtr(newCycler)) {
                 void* newMita = *(void**)((uintptr_t)newCycler + 0x20);
@@ -1151,7 +1043,6 @@ namespace sdk {
                 }
             }
             
-            // Update currentIndex in MitaCycle
             *(int*)((uintptr_t)mitaCycle + 0x80) = index;
             
             return true;
@@ -1184,7 +1075,6 @@ namespace sdk {
             int count = GetOutfitCount();
             if (count <= 0) return names;
             
-            // Get themeOptions list
             void* themeOptions = *(void**)((uintptr_t)mitaCycle + 0x30);
             if (!themeOptions || !IsValidPtr(themeOptions)) return names;
             
@@ -1198,26 +1088,19 @@ namespace sdk {
                     continue;
                 }
                 
-                // name (LocalizedUI) is at offset 0x28, but hard to read
-                // For now, just use index
                 names.push_back("Outfit " + std::to_string(i + 1));
             }
             
             return names;
         }
 
-        // ============================================================
-        // Player Modification - FOV & Jump
-        // ============================================================
 
         void* GetPlayerCameraObject() {
-            // Get PlayerManager and access playerCam directly
             void* pm = GetPlayerManager();
             if (!pm || !IsValidPtr(pm)) {
                 return GetMainCamera(); // Fallback
             }
 
-            // PlayerManager.playerCam is at offset 0x28
             __try {
                 void* cam = *(void**)((uintptr_t)pm + 0x28);
                 if (cam && IsValidPtr(cam)) {
@@ -1225,7 +1108,6 @@ namespace sdk {
                 }
             }
             __except (EXCEPTION_EXECUTE_HANDLER) {
-                // Fall through to fallback
             }
 
             return GetMainCamera();
@@ -1234,7 +1116,6 @@ namespace sdk {
         float GetCameraFOV(void* camera) {
             if (!camera || !IsValidPtr(camera)) return 0.0f;
 
-            // Use il2cpp_resolve_icall for Camera::get_fieldOfView
             if (!il2cpp_resolve_icall) {
                 il2cpp_resolve_icall = (t_il2cpp_resolve_icall)GetProcAddress(GetModuleHandleA("GameAssembly.dll"), "il2cpp_resolve_icall");
             }
@@ -1257,7 +1138,6 @@ namespace sdk {
         void SetCameraFOV(void* camera, float fov) {
             if (!camera || !IsValidPtr(camera)) return;
 
-            // Use il2cpp_resolve_icall for Camera::set_fieldOfView
             if (!il2cpp_resolve_icall) {
                 il2cpp_resolve_icall = (t_il2cpp_resolve_icall)GetProcAddress(GetModuleHandleA("GameAssembly.dll"), "il2cpp_resolve_icall");
             }
@@ -1273,12 +1153,10 @@ namespace sdk {
                 set_fov(camera, fov);
             }
             __except (EXCEPTION_EXECUTE_HANDLER) {
-                // Ignore errors
             }
         }
 
         void* GetKiriMove() {
-            // Game uses kiriMoveBasic via PlayerManager.move at offset 0x58
             void* pm = GetPlayerManager();
             if (!pm || !IsValidPtr(pm)) return nullptr;
 
@@ -1296,13 +1174,10 @@ namespace sdk {
         }
 
         float GetJumpHeight(void* kiriMove) {
-            // kiriMoveBasic has NO jumping - return 0
             return 0.0f;
         }
 
         void SetJumpHeight(void* kiriMove, float height) {
-            // kiriMoveBasic has NO jumping - do nothing
-            // The game uses kiriMoveBasic which doesn't support jumping
             return;
         }
 
@@ -1310,7 +1185,6 @@ namespace sdk {
             void* pm = GetPlayerManager();
             if (!pm || !IsValidPtr(pm)) return nullptr;
             
-            // kiriLook look; // 0x60
             __try {
                 void* look = *(void**)((uintptr_t)pm + 0x60);
                 if (look && IsValidPtr(look)) return look;
@@ -1331,38 +1205,26 @@ namespace sdk {
         }
 
         void* GetPlayerCameraScript() {
-             // FindObjectOfType("PlayerCamera") is reliable
              return FindObjectOfType("PlayerCamera");
         }
 
-// Namespaces continued
-        // ===========================================
-        // DOTween IMPLEMENTATION
-        // ===========================================
 
         std::vector<void*> GetActiveTweens() {
             std::vector<void*> tweens;
             
-            // Try explicit TweenManager first
             static Il2CppClass* tmClass = nullptr;
             if (!tmClass) tmClass = GetClass("DG.Tweening.Core", "TweenManager");
             
             if (!tmClass) {
-                // Fallback to DOTween class which might hold the manager reference
                 static Il2CppClass* dotweenClass = nullptr;
                 if (!dotweenClass) dotweenClass = GetClass("DG.Tweening", "DOTween");
-                // This path is harder without exact offsets. Stick to TweenManager if possible.
             }
 
             if (!tmClass) return tweens;
 
-            // Find _activeTweens list
-            // It's usually a static field in TweenManager
             static Il2CppField* activeTweensField = nullptr;
             if (!activeTweensField) activeTweensField = GetField(tmClass, "_activeTweens");
             
-            // If not found, try private fields (GetField should find them)
-            // Or try "totActiveTweens" which might be the public getter/backing field?
             
             if (!activeTweensField) return tweens;
 
@@ -1371,20 +1233,13 @@ namespace sdk {
             
             if (!list) return tweens;
 
-            // List<T> structure:
-            // 0x10: items array
-            // 0x18: size (int32)
             
             int size = 0;
-            // Verify List class
-            // We can just read memory for List structure if we trust it
             __try {
                 size = *(int*)((uintptr_t)list + 0x18);
                 void* items = *(void**)((uintptr_t)list + 0x10);
                 
                 if (items && size > 0) {
-                    // Array content starts at 0x20 usually (Il2CppArray)
-                    // The array holds pointers if T is reference type (Tween is class)
                     void** ptrs = (void**)((uintptr_t)items + 0x20);
                     
                     for (int i = 0; i < size; i++) {
@@ -1395,7 +1250,6 @@ namespace sdk {
                 }
             }
             __except (EXCEPTION_EXECUTE_HANDLER) {
-                // Safe read failed
             }
             
             return tweens;
@@ -1405,69 +1259,35 @@ namespace sdk {
             std::vector<Vector3> points;
             if (!tween) return points;
 
-            // We need to find if this tween has a 'Path' object (DG.Tweening.Plugins.Core.PathCore.Path)
-            // The tween is likely of type TweenerCore<Vector3, Path, PathOptions>
-            // We can assume if we find a field of type 'Path', it's the one.
             
             static Il2CppClass* pathClass = nullptr;
             if (!pathClass) pathClass = GetClass("DG.Tweening.Plugins.Core.PathCore", "Path");
             
             if (!pathClass) return points;
 
-            // Reflection to find field of type Path
-            // Cache the offset once found
             static int pathFieldOffset = -1;
             
             if (pathFieldOffset == -1) {
                 Il2CppClass* klass = *(Il2CppClass**)tween;
-                // We iterate fields of the tween instance
-                // We need API to iterate fields. 
-                // Since we don't have GetFields exposed easily in sdk.h (only GetField by name),
-                // we might need to search by likely names or use a brute force approach if we could.
-                // But wait, the Generics T2 is the Path object.
-                // In TweenerCore, 'endValue' is T2? Or 'changeValue'?
-                // Actually, for Path plugin, the 'Path' object IS the value being tweened in a way, 
-                // but usually it's stored in 'startValue' or 'endValue' or 'plugins' data.
                 
-                // Let's try 'endValue' field first, checking if its type matches Path class
-                // Removed il2cpp_field_get_offset usage
                 
-                // Better strategy: Look for 'wps' (waypoints) field in the object obtained from 'endValue'.
-                // If 'endValue' holds the Path object.
             }
 
-            // Let's try to get 'endValue' and see if it looks like a Path object
-            // A Path object should have a field 'wps' (Vector3[]) and 'linearWP' (Vector3[]) etc.
             
             static Il2CppClass* tweenerCoreClass = nullptr; // We can't easily get generic class by name
-            // But we don't need the class def if we assume the field name 'endValue' exists on the instance.
-            // The instance 'tween' is an object.
             
-            // We need to resolve field offset or use GetField logic every time which is slow?
-            // GetField does lookup.
             
-            // Let's try "startValue" and "endValue"
-            // For Path tween, logic is complex.
-            // Actually, usually 'Path' object is stored in 'plugins' specific field?
-            // But simpler: The user said "DG_Tweening_Plugins_Core_PathCore_Path".
-            // If we can find where this is stored.
             
-            // Let's try grabbing "endValue" field.
-            // Note: We need the class of the 'tween' instance to pass to GetField.
             Il2CppClass* klass = *(Il2CppClass**)tween;
             
             void* pathObj = nullptr;
             
-            // Try endValue
-            // Note: generic fields might be tricky.
-            // But usually the layout is compatible.
             Il2CppField* endValField = GetField(klass, "endValue");
             if (endValField) {
                  il2cpp_field_get_value(tween, endValField, &pathObj);
             }
             
             if (!pathObj) {
-                // Try startValue?
                  Il2CppField* startValField = GetField(klass, "startValue");
                  if (startValField) {
                      il2cpp_field_get_value(tween, startValField, &pathObj);
@@ -1476,25 +1296,17 @@ namespace sdk {
             
             if (!pathObj) return points;
             
-            // Check if pathObj is actually a Path
-            // We can check if it has 'wps' field
             Il2CppClass* objClass = *(Il2CppClass**)pathObj;
             if (!objClass) return points;
             
-            // const char* name = il2cpp_class_get_name(objClass); 
-            // We don't have il2cpp_class_get_name imported? 
-            // Wait, we can't check name easily.
-            // But we can check if it has "wps" field.
             
             Il2CppField* wpsField = GetField(objClass, "wps"); // Waypoints
             if (!wpsField) return points;
             
-            // Found it! It has 'wps'. It's likely the Path object.
             void* wpsArray = nullptr;
             il2cpp_field_get_value(pathObj, wpsField, &wpsArray);
             
             if (wpsArray) {
-                // It's a Vector3[] (Array)
                 int count = *(int*)((uintptr_t)wpsArray + 0x18);
                 if (count > 0 && count < 1000) { // Sanity check
                     Vector3* src = (Vector3*)((uintptr_t)wpsArray + 0x20);
@@ -1508,9 +1320,6 @@ namespace sdk {
         }
 
 
-        // ===========================================
-        // NEW ADDITIONS
-        // ===========================================
 
         Vector3 GetRigidbodyVelocity(void* rb) {
             if (!rb) return {0,0,0};
@@ -1552,15 +1361,10 @@ namespace sdk {
              
              if (!arrayObj) return results;
              
-             // Array layout: 
-             // 0x18: bounds?
-             // 0x20: data items? 
-             // Actually, Il2CppArray has length at 0x18, items start at 0x20 usually (x64).
              
              uint32_t length = *(uint32_t*)((char*)arrayObj + 0x18);
              void** items = (void**)((char*)arrayObj + 0x20);
              
-             // Validate length
              if (length > 10000) length = 10000;
 
              for (uint32_t i = 0; i < length; i++) {
@@ -1581,7 +1385,6 @@ namespace sdk {
             void* strObj = RuntimeInvoke(getName, object, nullptr, nullptr);
             if (!strObj) return "null";
             
-            // Il2CppString: length at 0x10, chars at 0x14 (UTF-16)
             int length = *(int*)((char*)strObj + 0x10);
             wchar_t* chars = (wchar_t*)((char*)strObj + 0x14);
             
@@ -1593,7 +1396,6 @@ namespace sdk {
         }
         
         const char* GetLayerName(int layer) {
-             // UnityEngine.LayerMask.LayerToName(int)
              static Il2CppClass* layerMaskClass = nullptr;
              if (!layerMaskClass) layerMaskClass = GetClass("UnityEngine", "LayerMask");
              
@@ -1613,9 +1415,6 @@ namespace sdk {
              return buffer;
         }
 
-        // ===========================================
-        // CAMERA FUNCTIONS (FREECAM)
-        // ===========================================
 
         Vector3 GetCameraPosition(void* camera) {
             if (!camera) return {0,0,0};
@@ -1640,7 +1439,6 @@ namespace sdk {
             void* transform = RuntimeInvoke(getTrans, camera, nullptr, nullptr);
             if (!transform) return;
 
-            // Transform.set_position(Vector3)
             static Il2CppMethod* setPos = nullptr;
             if (!setPos) setPos = GetMethod((Il2CppClass*)g_TransformClass, "set_position", 1);
 
@@ -1660,7 +1458,6 @@ namespace sdk {
             void* transform = RuntimeInvoke(getTrans, camera, nullptr, nullptr);
             if (!transform) return {0,0,0,1};
 
-            // Transform.get_rotation()
             static Il2CppMethod* getRot = nullptr;
             if (!getRot) getRot = GetMethod((Il2CppClass*)g_TransformClass, "get_rotation", 0);
 
@@ -1684,7 +1481,6 @@ namespace sdk {
             void* transform = RuntimeInvoke(getTrans, camera, nullptr, nullptr);
             if (!transform) return {0,0,0};
 
-            // Transform.get_eulerAngles()
             static Il2CppMethod* getEuler = nullptr;
             if (!getEuler) getEuler = GetMethod((Il2CppClass*)g_TransformClass, "get_eulerAngles", 0);
 
@@ -1708,7 +1504,6 @@ namespace sdk {
             void* transform = RuntimeInvoke(getTrans, camera, nullptr, nullptr);
             if (!transform) return;
 
-            // Transform.set_rotation(Quaternion)
             static Il2CppMethod* setRot = nullptr;
             if (!setRot) setRot = GetMethod((Il2CppClass*)g_TransformClass, "set_rotation", 1);
 
@@ -1728,7 +1523,6 @@ namespace sdk {
             void* transform = RuntimeInvoke(getTrans, camera, nullptr, nullptr);
             if (!transform) return {0,0,1};
 
-            // Transform.get_forward()
             static Il2CppMethod* getFwd = nullptr;
             if (!getFwd) getFwd = GetMethod((Il2CppClass*)g_TransformClass, "get_forward", 0);
 
@@ -1742,12 +1536,7 @@ namespace sdk {
             return res;
         }
 
-        // ============================================================
-        // SAFE TRANSFORM ACCESS (Using Unity icalls)
-        // Direct memory access causes crashes - use proper Unity API
-        // ============================================================
 
-        // Icall function pointers for Transform
         typedef void(__stdcall* fnGetPositionInjected)(void* transform, Vector3* ret);
         typedef void(__stdcall* fnSetPositionInjected)(void* transform, const Vector3* value);
         typedef void(__stdcall* fnGetRotationInjected)(void* transform, Quaternion* ret);
@@ -1771,7 +1560,6 @@ namespace sdk {
         Vector3 GetTransformPositionFast(void* transform) {
             if (!transform) return {0,0,0};
             
-            // Initialize icall if needed
             if (!s_GetPositionInjected) {
                 if (!resolve_icall) resolve_icall = (t_il2cpp_resolve_icall)GetProcAddress(GetModuleHandleA("GameAssembly.dll"), "il2cpp_resolve_icall");
                 if (resolve_icall) {
@@ -1788,7 +1576,6 @@ namespace sdk {
                     return {0,0,0};
                 }
             } else {
-                // Fallback to RuntimeInvoke method
                 return GetTransformPosition(transform);
             }
             return result;
@@ -1797,7 +1584,6 @@ namespace sdk {
         void SetTransformPositionFast(void* transform, Vector3 pos) {
             if (!transform) return;
             
-            // Initialize icall if needed
             if (!s_SetPositionInjected) {
                 if (!resolve_icall) resolve_icall = (t_il2cpp_resolve_icall)GetProcAddress(GetModuleHandleA("GameAssembly.dll"), "il2cpp_resolve_icall");
                 if (resolve_icall) {
@@ -1810,7 +1596,6 @@ namespace sdk {
                     s_SetPositionInjected(transform, &pos);
                 }
                 __except (EXCEPTION_EXECUTE_HANDLER) {
-                    // Silent fail
                 }
             }
         }
@@ -1818,7 +1603,6 @@ namespace sdk {
         Quaternion GetTransformRotationFast(void* transform) {
             if (!transform) return {0,0,0,1};
             
-            // Initialize icall if needed
             if (!s_GetRotationInjected) {
                 if (!resolve_icall) resolve_icall = (t_il2cpp_resolve_icall)GetProcAddress(GetModuleHandleA("GameAssembly.dll"), "il2cpp_resolve_icall");
                 if (resolve_icall) {
@@ -1841,7 +1625,6 @@ namespace sdk {
         void SetTransformRotationFast(void* transform, Quaternion rot) {
             if (!transform) return;
             
-            // Initialize icall if needed
             if (!s_SetRotationInjected) {
                 if (!resolve_icall) resolve_icall = (t_il2cpp_resolve_icall)GetProcAddress(GetModuleHandleA("GameAssembly.dll"), "il2cpp_resolve_icall");
                 if (resolve_icall) {
@@ -1854,23 +1637,16 @@ namespace sdk {
                     s_SetRotationInjected(transform, &rot);
                 }
                 __except (EXCEPTION_EXECUTE_HANDLER) {
-                    // Silent fail
                 }
             }
         }
 
-        // ============================================================
-        // FLY HELPERS - Based on dump analysis
-        // kiriMoveBasic structure:
-        // - feet (Transform) at offset 0x40
-        // ============================================================
 
         void* GetPlayerFeetTransform() {
             void* move = GetPlayerMovement();
             if (!move || !IsValidPtr(move)) return nullptr;
 
             __try {
-                // kiriMoveBasic.feet is at offset 0x40
                 void* feet = *(void**)((uintptr_t)move + 0x40);
                 if (!IsValidPtr(feet)) return nullptr;
                 return feet;
@@ -1884,7 +1660,6 @@ namespace sdk {
             void* feet = GetPlayerFeetTransform();
             if (!feet) return;
 
-            // Use safe icall method
             SetTransformPositionFast(feet, pos);
         }
 

@@ -38,3 +38,6 @@ ipch/
 ## Other
 .DS_Store
 Thumbs.db
+
+## IL2CPP Dumps (exclude large generated files)
+Dump/
