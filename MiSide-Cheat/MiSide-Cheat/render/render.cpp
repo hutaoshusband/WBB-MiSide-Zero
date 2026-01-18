@@ -149,10 +149,8 @@ namespace render {
         ui::RenderModuleList();
         ui::RenderKeybindList();
         
-        // Render menu if open
-        if (menu::g_bOpen) {
-            menu::RenderMenu();
-        }
+        // Always call RenderMenu to handle open/close animations
+        menu::RenderMenu();
 
         // Render features (ESP, Debug View, etc)
         features::OnRender();
