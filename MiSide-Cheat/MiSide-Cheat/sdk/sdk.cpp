@@ -1365,21 +1365,218 @@ namespace sdk {
 
 
         Vector3 GetRigidbodyVelocity(void* rb) {
-            if (!rb) return {0,0,0};
+            if (!rb || !IsValidPtr(rb)) return {0,0,0};
+            
             static Il2CppClass* rbClass = nullptr;
             if (!rbClass) rbClass = GetClass("UnityEngine", "Rigidbody");
             
             static Il2CppMethod* getVel = nullptr;
             if (!getVel) getVel = GetMethod(rbClass, "get_velocity", 0);
             
-            Vector3 res = {0,0,0};
             if (getVel) {
+                Vector3 res = {0,0,0};
                 void* ret = RuntimeInvoke(getVel, rb, nullptr, nullptr);
                 if (ret) {
-                    res = *(Vector3*)((char*)ret + 0x10);
+                     res = *(Vector3*)((char*)ret + 0x10); 
+                }
+                return res;
+            }
+            return {0,0,0};
+        }
+
+        // Inventory Implementation
+        static void* g_CachedInventory = nullptr;
+        static int g_InventoryRefreshTimer = 0;
+
+        void* GetKiriInventory() {
+            if (g_InventoryRefreshTimer <= 0 || !g_CachedInventory) {
+                g_CachedInventory = FindObjectOfType("KiriInventory");
+                g_InventoryRefreshTimer = 120; // Refresh every ~2s
+            } else {
+                g_InventoryRefreshTimer--;
+            }
+            return g_CachedInventory;
+        }
+
+        void* FindGameObject(const char* name) {
+            static Il2CppClass* goClass = nullptr;
+            if (!goClass) goClass = GetClass("UnityEngine", "GameObject");
+            
+            static Il2CppMethod* find = nullptr;
+            if (!find) find = GetMethod(goClass, "Find", 1);
+            
+            if (!find) return nullptr;
+            
+            static void* (*il2cpp_string_new)(const char*) = nullptr;
+            if (!il2cpp_string_new) {
+                il2cpp_string_new = (void* (*)(const char*))GetProcAddress(g_GameAssembly, "il2cpp_string_new");
+            }
+            if (!il2cpp_string_new) return nullptr;
+            
+            void* str = il2cpp_string_new(name);
+            void* params[1] = { str };
+            return RuntimeInvoke(find, nullptr, params, nullptr);
+        }
+
+        void AddItemToInventory(const char* itemID, bool bypassUI) {
+            // Ensure thread is attached to IL2CPP domain to prevent "Collecting from Unknown Thread" crash
+            if (!AttachCurrentThread()) return;
+            
+            void* inventory = GetKiriInventory();
+            if (!inventory || !IsValidPtr(inventory)) return;
+
+            static Il2CppClass* invClass = nullptr;
+            if (!invClass) invClass = GetClass("", "KiriInventory");
+            if (!invClass) return;
+
+            static Il2CppMethod* addItem = nullptr;
+            if (!addItem) addItem = GetMethod(invClass, "AddItem", 1);
+            if (!addItem) return;
+
+            static void* (*il2cpp_string_new)(const char*) = nullptr;
+            if (!il2cpp_string_new) {
+                il2cpp_string_new = (void* (*)(const char*))GetProcAddress(g_GameAssembly, "il2cpp_string_new");
+            }
+            if (!il2cpp_string_new) return;
+
+            // Safe Mode: Disable UI components that might crash
+            void* inventoryUI = nullptr;
+            void* notificationUI = nullptr;
+            
+            if (bypassUI) {
+                // Try to find common UI objects
+                inventoryUI = FindGameObject("InventoryUI");
+                if (!inventoryUI) inventoryUI = FindGameObject("InventoryCanvas");
+                
+                // Notifications often crash if icon is missing
+                notificationUI = FindGameObject("NotificationCanvas"); 
+                if (!notificationUI) notificationUI = FindGameObject("Notifications");
+
+                if (inventoryUI) SetGameObjectActive(inventoryUI, false);
+                if (notificationUI) SetGameObjectActive(notificationUI, false);
+            }
+
+            // Wrap in SEH to prevent cheat crash
+            __try {
+                void* strID = il2cpp_string_new(itemID);
+                void* params[1] = { strID };
+                RuntimeInvoke(addItem, inventory, params, nullptr);
+            }
+            __except(EXCEPTION_EXECUTE_HANDLER) {
+                // Log error or ignore
+            }
+
+            if (bypassUI) {
+                if (inventoryUI) SetGameObjectActive(inventoryUI, true);
+                if (notificationUI) SetGameObjectActive(notificationUI, true);
+            }
+        }
+
+        void RemoveItemFromInventory(const char* itemID) {
+            // Ensure thread is attached to IL2CPP domain to prevent "Collecting from Unknown Thread" crash
+            if (!AttachCurrentThread()) return;
+            
+            void* inventory = GetKiriInventory();
+            if (!inventory || !IsValidPtr(inventory)) return;
+
+            static Il2CppClass* invClass = nullptr;
+            if (!invClass) invClass = GetClass("", "KiriInventory");
+            if (!invClass) return;
+
+            static Il2CppMethod* removeItem = nullptr;
+            if (!removeItem) removeItem = GetMethod(invClass, "RemoveItem", 1);
+            if (!removeItem) return;
+
+            static void* (*il2cpp_string_new)(const char*) = nullptr;
+            if (!il2cpp_string_new) {
+                il2cpp_string_new = (void* (*)(const char*))GetProcAddress(g_GameAssembly, "il2cpp_string_new");
+            }
+            if (!il2cpp_string_new) return;
+
+            void* strID = il2cpp_string_new(itemID);
+            void* params[1] = { strID };
+            RuntimeInvoke(removeItem, inventory, params, nullptr);
+        }
+
+        bool HasItemInInventory(const char* itemID) {
+            // Ensure thread is attached to IL2CPP domain to prevent "Collecting from Unknown Thread" crash
+            if (!AttachCurrentThread()) return false;
+            
+            void* inventory = GetKiriInventory();
+            if (!inventory || !IsValidPtr(inventory)) return false;
+
+            static Il2CppClass* invClass = nullptr;
+            if (!invClass) invClass = GetClass("", "KiriInventory");
+            if (!invClass) return false;
+
+            static Il2CppMethod* hasItem = nullptr;
+            if (!hasItem) hasItem = GetMethod(invClass, "HasItem", 1);
+            if (!hasItem) return false;
+
+            static void* (*il2cpp_string_new)(const char*) = nullptr;
+            if (!il2cpp_string_new) {
+                il2cpp_string_new = (void* (*)(const char*))GetProcAddress(g_GameAssembly, "il2cpp_string_new");
+            }
+            if (!il2cpp_string_new) return false;
+
+            void* strID = il2cpp_string_new(itemID);
+            void* params[1] = { strID };
+            
+            void* result = RuntimeInvoke(hasItem, inventory, params, nullptr);
+            if (!result) return false;
+
+            return *(bool*)((char*)result + 0x10);
+        }
+
+        std::vector<std::string> GetInventoryItems() {
+            std::vector<std::string> items;
+            
+            // Ensure thread is attached to IL2CPP domain to prevent "Collecting from Unknown Thread" crash
+            if (!AttachCurrentThread()) return items;
+            
+            void* inventory = GetKiriInventory();
+            if (!inventory || !IsValidPtr(inventory)) return items;
+
+            static Il2CppClass* invClass = nullptr;
+            if (!invClass) invClass = GetClass("", "KiriInventory");
+            if (!invClass) return items;
+
+            static Il2CppMethod* getAll = nullptr;
+            if (!getAll) getAll = GetMethod(invClass, "GetAllItems", 0);
+            if (!getAll) return items;
+
+            void* listObj = RuntimeInvoke(getAll, inventory, nullptr, nullptr);
+            if (!listObj) return items;
+
+            // List<T> structure:
+            // 0x10: _items (Array)
+            // 0x18: _size (int)
+            // 0x20: _version (int)
+
+            void* itemsArray = *(void**)((uintptr_t)listObj + 0x10);
+            int size = *(int*)((uintptr_t)listObj + 0x18);
+
+            if (!itemsArray || size <= 0) return items;
+
+            for (int i = 0; i < size; i++) {
+                // Array elements start at 0x20
+                void* stringObj = *(void**)((uintptr_t)itemsArray + 0x20 + (i * 8)); 
+                if (stringObj) {
+                    // String structure:
+                    // 0x10: length (int)
+                    // 0x14: first char
+                    
+                    int len = *(int*)((uintptr_t)stringObj + 0x10);
+                    if (len > 0) {
+                        const wchar_t* chars = (const wchar_t*)((uintptr_t)stringObj + 0x14);
+                        // Convert wstring to string
+                        std::wstring ws(chars, len);
+                        std::string s(ws.begin(), ws.end());
+                        items.push_back(s);
+                    }
                 }
             }
-            return res;
+            return items;
         }
 
         std::vector<void*> FindObjectsOfTypeAll(const char* className) {
@@ -1704,6 +1901,54 @@ namespace sdk {
             if (!feet) return;
 
             SetTransformPositionFast(feet, pos);
+        }
+
+
+        std::vector<std::string> GetAllItemPickups() {
+            std::vector<std::string> items;
+            
+            // Ensure thread is attached to IL2CPP domain to prevent "Collecting from Unknown Thread" crash
+            if (!AttachCurrentThread()) return items;
+            
+            std::vector<void*> pickups = FindObjectsOfTypeAll("ItemPickup");
+            
+            static Il2CppClass* itemPickupClass = nullptr;
+            if (!itemPickupClass) itemPickupClass = GetClass("", "ItemPickup");
+            if (!itemPickupClass) return items;
+
+            Il2CppField* idField = GetField(itemPickupClass, "itemID");
+            if (!idField) return items;
+
+            for (void* pickup : pickups) {
+                if (!pickup || !IsValidPtr(pickup)) continue;
+
+                void* strObj = nullptr;
+                il2cpp_field_get_value(pickup, idField, &strObj);
+
+                if (strObj && IsValidPtr(strObj)) {
+                    int length = *(int*)((char*)strObj + 0x10);
+                    if (length > 0 && length < 128) {
+                         wchar_t* chars = (wchar_t*)((char*)strObj + 0x14);
+                         char buffer[128];
+                         WideCharToMultiByte(CP_UTF8, 0, chars, length, buffer, sizeof(buffer)-1, NULL, NULL);
+                         buffer[length] = 0;
+                         
+                         std::string s(buffer);
+                         if (!s.empty()) {
+                             // Avoid duplicates
+                             bool exists = false;
+                             for (const auto& existing : items) {
+                                 if (existing == s) {
+                                     exists = true;
+                                     break;
+                                 }
+                             }
+                             if (!exists) items.push_back(s);
+                         }
+                    }
+                }
+            }
+            return items;
         }
 
     } // namespace game

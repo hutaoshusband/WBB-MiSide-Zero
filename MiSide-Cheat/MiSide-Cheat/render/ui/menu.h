@@ -5,6 +5,7 @@
 #include "../../config/config.h"
 #include "../../features/features.h"
 #include "../../features/debug_draw.h"
+#include "../../features/inventory_changer.h"
 #include "../../sdk/sdk.h"
 #include "../render.h"
 #include "../../core/core.h"
@@ -550,8 +551,18 @@ namespace ui {
                     ImGui::TextDisabled("Default: 90, Higher = wider view");
                     ImGui::Unindent();
                 }
-
+                
                 ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+                
+                // Inventory Changer Button
+                if (Button(features::inventory::show_window ? "Close Inventory Changer" : "Open Inventory Changer", ImVec2(full_width - 30, 35 * dpi_scale))) {
+                    features::inventory::show_window = !features::inventory::show_window;
+                }
+                
+                ImGui::Spacing();
+                ImGui::Separator();
                 ImGui::Spacing();
 
                 // Jump Power - Disabled (game uses kiriMoveBasic without jump)
@@ -865,8 +876,16 @@ namespace ui {
         // Detect menu state change to trigger animation
         if (menu_is_open != g_bLastMenuOpenState) {
             g_bLastMenuOpenState = menu_is_open;
-            // Reset animation when state changes - start from current alpha
+            // Reset animation when state changes
             // This ensures animation plays every time menu opens/closes
+            if (menu_is_open) {
+                // Menu just opened - start from small/transparent
+                g_fMenuAlpha = 0.0f;
+                g_fMenuScale = 0.95f;
+            } else {
+                // Menu just closed - animation will fade out from current state
+                // No reset needed here, let it animate to closed state
+            }
         }
         
         float target_alpha = menu_is_open ? 1.0f : 0.0f;
@@ -887,8 +906,8 @@ namespace ui {
         if (g_fMenuAlpha < 0.01f) g_fMenuAlpha = 0.0f;
         if (g_fMenuAlpha > 0.99f) g_fMenuAlpha = 1.0f;
         
-        // Return early if menu is closed (don't render)
-        if (!menu_is_open) return;
+        // Return early if menu is fully closed (alpha is 0) - don't render
+        if (g_fMenuAlpha <= 0.0f && !menu_is_open) return;
         
         // Menu window - 820x750 with scale animation
         ImVec2 base_size = ImVec2(820 * dpi_scale, 750 * dpi_scale);
