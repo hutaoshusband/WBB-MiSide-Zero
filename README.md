@@ -46,6 +46,7 @@
 - [x] **Freeze** - Freeze player position in place
 
 ### 🎮 Game
+- [x] **Inventory Changer** - Add or remove items from your inventory
 - [x] **Mita Speed** - Control Mita's movement speed
 - [x] **FOV Changer** - Customize your field of view
 - [x] **Debug View** - Advanced game analysis tools
