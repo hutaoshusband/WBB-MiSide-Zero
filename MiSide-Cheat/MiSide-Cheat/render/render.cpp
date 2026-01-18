@@ -150,7 +150,6 @@ namespace render {
         ui::RenderKeybindList();
         
         // Render menu if open
-        // Render menu if open
         if (menu::g_bOpen) {
             menu::RenderMenu();
         }
@@ -186,10 +185,8 @@ namespace render {
         void Toggle() {
             g_bOpen = !g_bOpen;
             
-            // Fix: Unlock cursor when menu is open
-            if (g_bOpen) {
-                ClipCursor(nullptr);
-            }
+            // Note: Cursor management is handled in WndProc hook
+            // We don't manipulate ShowCursor here to avoid messing up the game's cursor count
         }
         
         void SetToggleKey(int key) {

@@ -148,18 +148,37 @@ namespace hooks {
         return hr;
     }
     
+    // Track menu state to detect transitions
+    static bool s_bMenuWasOpen = false;
+    
     LRESULT CALLBACK hkWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-        // Let ImGui handle input first
-        if (ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam)) {
-            return true;
+        bool menuOpen = render::menu::IsOpen();
+        
+        // Detect menu state transitions
+        if (menuOpen && !s_bMenuWasOpen) {
+            // Menu just opened - unlock cursor once
+            ClipCursor(nullptr);
+        }
+        s_bMenuWasOpen = menuOpen;
+        
+        // Let ImGui handle input when menu is open
+        if (menuOpen) {
+            if (ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam)) {
+                return true;
+            }
         }
         
         // Block game input when menu is open
-        if (render::menu::IsOpen()) {
-            // Show cursor
+        if (menuOpen) {
+            // Use ImGui's software cursor
             ImGui::GetIO().MouseDrawCursor = true;
             
             switch (uMsg) {
+                // Block raw input - this is what Unity uses for camera movement
+                case WM_INPUT:
+                    return 0;
+                
+                // Block all mouse messages from reaching the game
                 case WM_MOUSEMOVE:
                 case WM_LBUTTONDOWN:
                 case WM_LBUTTONUP:
@@ -168,12 +187,29 @@ namespace hooks {
                 case WM_MBUTTONDOWN:
                 case WM_MBUTTONUP:
                 case WM_MOUSEWHEEL:
+                case WM_MOUSEHWHEEL:
+                case WM_XBUTTONDOWN:
+                case WM_XBUTTONUP:
+                case WM_LBUTTONDBLCLK:
+                case WM_RBUTTONDBLCLK:
+                case WM_MBUTTONDBLCLK:
+                    return 0;
+                
+                // Block keyboard messages from reaching the game
                 case WM_KEYDOWN:
                 case WM_KEYUP:
+                case WM_SYSKEYDOWN:
+                case WM_SYSKEYUP:
                 case WM_CHAR:
-                    return true;
+                    return 0;
+                
+                // Prevent game from changing cursor when menu is open
+                case WM_SETCURSOR:
+                    SetCursor(LoadCursor(nullptr, IDC_ARROW));
+                    return TRUE;
             }
         } else {
+            // Menu is closed - let game handle everything normally
             ImGui::GetIO().MouseDrawCursor = false;
         }
         
