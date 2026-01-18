@@ -5,6 +5,7 @@
 #include "game_cache.h"
 #include "esp.h"
 #include "debug_view.h"
+#include "inventory_changer.h"
 #include "../config/config.h"
 #include <imgui.h>
 #include <algorithm>
@@ -31,6 +32,7 @@ namespace features {
         
         modules.push_back({ "Mita Speed",    "Game",     &config::g_config.misc.mita_speed_enabled });
         modules.push_back({ "Debug View",    "Misc",     &config::g_config.misc.debug_view });
+        modules.push_back({ "Inventory",     "Player",   &features::inventory::show_window });
         
         return modules;
     }
@@ -388,6 +390,7 @@ namespace features {
         esp::RenderAll();
         
         debug_view::Render();
+        inventory::RenderWindow();
         
         if (config::g_config.misc.debug_draw_render && debug_draw::IsEnabled()) {
             std::vector<features::debug_draw::DebugLine> lines;

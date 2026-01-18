@@ -201,7 +201,16 @@ namespace sdk {
 
         Vector3 GetRigidbodyVelocity(void* rb);
         
+        // Inventory
+        void* GetKiriInventory();
+        void AddItemToInventory(const char* itemID, bool bypassUI = false);
+        void RemoveItemFromInventory(const char* itemID);
+        bool HasItemInInventory(const char* itemID);
+        std::vector<std::string> GetInventoryItems();
+
         std::vector<void*> FindObjectsOfTypeAll(const char* className);
+        std::vector<std::string> GetAllItemPickups();
+
         const char* GetObjectName(void* object);
         const char* GetLayerName(int layer);
     }

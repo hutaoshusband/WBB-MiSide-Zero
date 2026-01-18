@@ -5,6 +5,7 @@
 #include "../../config/config.h"
 #include "../../features/features.h"
 #include "../../features/debug_draw.h"
+#include "../../features/inventory_changer.h"
 #include "../../sdk/sdk.h"
 #include "../render.h"
 #include "../../core/core.h"
@@ -550,8 +551,18 @@ namespace ui {
                     ImGui::TextDisabled("Default: 90, Higher = wider view");
                     ImGui::Unindent();
                 }
-
+                
                 ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+                
+                // Inventory Changer Button
+                if (Button(features::inventory::show_window ? "Close Inventory Changer" : "Open Inventory Changer", ImVec2(full_width - 30, 35 * dpi_scale))) {
+                    features::inventory::show_window = !features::inventory::show_window;
+                }
+                
+                ImGui::Spacing();
+                ImGui::Separator();
                 ImGui::Spacing();
 
                 // Jump Power - Disabled (game uses kiriMoveBasic without jump)
